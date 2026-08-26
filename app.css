@@ -1,4 +1,4 @@
-/* Bayer Shiguang Visual Studio | generated 2026-08-25T09:10:55.286Z */
+/* Bayer Shiguang Visual Studio | generated 2026-08-26T06:32:51.255Z */
 :root {
   --ink: #24211f;
   --muted: #776f68;
@@ -131,6 +131,11 @@ textarea { width: 100%; min-height: 180px; resize: vertical; padding: 14px; bord
 .prompt-settings { display: flex; gap: 13px; flex-wrap: wrap; margin: 25px 0; padding: 16px; border: 1px solid var(--line); border-radius: 14px; background: rgba(255,255,255,.5); }
 .prompt-settings label { display: grid; gap: 6px; color: var(--muted); font-size: 12px; }
 .prompt-settings select, .prompt-settings input { min-width: 130px; border-radius: 9px; }
+.similarity-scale { display: grid; gap: 5px; align-content: center; padding: 8px 12px; border-left: 1px solid var(--line); color: var(--muted); font-size: 12px; }
+.similarity-scale b { color: var(--ink); }
+.scene-analysis-state { display: inline-flex; width: fit-content; margin: 8px 0 2px; padding: 5px 9px; border-radius: 999px; font-size: 11px; font-weight: 700; }
+.scene-analysis-state.ready { color: #276348; background: #e9f6ef; }
+.scene-analysis-state.fallback { color: #8a5b16; background: #fff2d8; }
 .prompt-results { display: grid; gap: 18px; margin-top: 28px; }
 .prompt-result { display: grid; grid-template-columns: minmax(280px, 34%) 1fr; gap: 22px; padding: 17px; border: 1px solid var(--line); border-radius: 16px; background: #fff; }
 .references { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 9px; align-content: start; }
