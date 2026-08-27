@@ -1,4 +1,4 @@
-/* Bayer Shiguang Visual Studio | generated 2026-08-26T06:32:51.255Z */
+/* Bayer Shiguang Visual Studio | generated 2026-08-27T03:06:32.898Z */
 :root {
   --ink: #24211f;
   --muted: #776f68;
@@ -171,6 +171,27 @@ textarea { width: 100%; min-height: 180px; resize: vertical; padding: 14px; bord
 .model-angle-editor { display: grid; gap: 10px; padding: 12px; border-top: 1px solid var(--line); }
 .model-angle-editor label { display: grid; gap: 5px; color: var(--muted); font-size: 12px; }
 .model-angle-editor input, .model-angle-editor select { width: 100%; border-radius: 8px; }
+.generation-panel, .generation-results { margin-top: 24px; padding: 20px; border: 1px solid var(--line); border-radius: 18px; background: rgba(255,255,255,.66); }
+.generation-health, .generation-submit { display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+.generation-status { display: inline-flex; padding: 7px 11px; border-radius: 999px; font-size: 12px; font-weight: 750; }
+.generation-status.neutral { color: var(--muted); background: #efede8; }
+.generation-status.ready { color: #276348; background: #e9f6ef; }
+.generation-status.warning { color: #8a5b16; background: #fff2d8; }
+.generation-status.error { color: var(--danger); background: #fff0ee; }
+.generation-controls { display: grid; grid-template-columns: minmax(220px, 1fr) 130px 160px; gap: 14px; margin: 20px 0; }
+.generation-controls label, .generation-prompt { display: grid; gap: 7px; color: var(--muted); font-size: 12px; }
+.generation-controls select, .generation-controls input { width: 100%; border-radius: 9px; }
+.generation-references { display: flex; gap: 10px; overflow-x: auto; margin-bottom: 18px; }
+.generation-references figure { flex: 0 0 126px; margin: 0; }
+.generation-references img { display: block; width: 126px; height: 104px; object-fit: contain; border-radius: 10px; background: #f7f4ef; }
+.generation-references figcaption { padding-top: 6px; color: var(--muted); font-size: 10px; text-align: center; }
+.generation-prompt textarea { min-height: 220px; }
+.generation-submit { margin-top: 16px; color: var(--muted); font-size: 12px; }
+.generation-empty { padding: 44px 20px; text-align: center; }
+.generated-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 18px; }
+.generated-card { margin: 0; overflow: hidden; border: 1px solid var(--line); border-radius: 14px; background: #fff; }
+.generated-card img { display: block; width: 100%; max-height: 680px; object-fit: contain; background: #f7f4ef; }
+.generated-card figcaption { padding: 12px; }
 
 @media (max-width: 1000px) {
   .workspace-layout { grid-template-columns: 1fr; }
@@ -179,4 +200,6 @@ textarea { width: 100%; min-height: 180px; resize: vertical; padding: 14px; bord
 @media (max-width: 760px) {
   .product-grid { grid-template-columns: 1fr; }
   .prompt-result { grid-template-columns: 1fr; }
+  .generation-controls { grid-template-columns: 1fr; }
+  .generation-health, .generation-submit { align-items: stretch; flex-direction: column; }
 }

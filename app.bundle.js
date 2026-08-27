@@ -1,4 +1,4 @@
-/* Bayer Shiguang Visual Studio | generated 2026-08-26T06:32:51.255Z */
+/* Bayer Shiguang Visual Studio | generated 2026-08-27T03:06:32.898Z */
 (function bootstrapStudio(global) {
   'use strict';
   global.BayerStudio = global.BayerStudio || {
@@ -7954,33 +7954,33 @@
     ].map(([file, label]) => ({ image: productRoot + file, label })),
     combos: ['包装盒＋药板', '包装盒', '药板', '药片'],
     angleFiles: [
-      ['model-angle-01.png', '正面偏左约30°', ['slightTop', 'oblique'], '平视', '左斜'],
-      ['model-angle-02.png', '正面偏右约30°', ['slightTop', 'oblique'], '平视', '右斜'],
-      ['model-angle-03.png', '正面偏左、俯拍', ['slightTop'], '高位俯拍', '左斜'],
-      ['model-angle-04.png', '俯拍、正面左侧与底部可见', ['highTop'], '高位俯拍', '右斜'],
-      ['model-angle-05.png', '横放高位俯拍、正面右侧与底部可见', ['highTop'], '高位俯拍', '左斜'],
-      ['model-angle-06.png', '直立正面、接近平视', ['eye', 'low'], '平视', '正面'],
-      ['model-angle-07.png', '直立正面偏左约45°、右侧面可见', ['eye', 'low', 'oblique'], '平视', '左斜'],
-      ['model-angle-08.png', '横放低角度、左侧面与底部条码面可见', ['low'], '轻微俯拍', '右斜'],
-      ['model-angle-09.png', '横放高位俯拍、正面左侧与底部可见', ['highTop'], '高位俯拍', '右斜'],
-      ['model-angle-10.png', '横放近垂直俯拍、正面为主', ['highTop'], '高位俯拍', '正面'],
-      ['model-angle-11.png', '横放高位俯拍、正面左侧与底部条码面可见', ['highTop'], '高位俯拍', '右斜'],
-      ['model-angle-12.png', '横放垂直俯拍、完整正面可见', ['highTop'], '高位俯拍', '正面']
-    ].map(([file, label, compatibleCameraTypes, cameraAngle, subjectOrientation]) => ({ file, label, compatibleCameraTypes, cameraAngle, subjectOrientation })),
+      ['model-angle-01.png', '正面偏左约30°', ['slightTop', 'oblique'], '平视', '左斜', '直立', '底面', '正面＋右侧面'],
+      ['model-angle-02.png', '正面偏右约30°', ['slightTop', 'oblique'], '平视', '右斜', '直立', '底面', '正面＋左侧面'],
+      ['model-angle-03.png', '正面偏左、俯拍', ['slightTop'], '高位俯拍', '左斜', '直立', '底面', '正面＋顶面＋右侧面'],
+      ['model-angle-04.png', '俯拍、正面左侧与底部可见', ['highTop'], '高位俯拍', '右斜', '侧躺', '侧面', '正面＋左侧面＋底面'],
+      ['model-angle-05.png', '横放高位俯拍、正面右侧与底部可见', ['highTop'], '高位俯拍', '左斜', '侧躺', '侧面', '正面＋右侧面＋底面'],
+      ['model-angle-06.png', '直立正面、接近平视', ['eye', 'low'], '平视', '正面', '直立', '底面', '正面'],
+      ['model-angle-07.png', '直立正面偏左约45°、右侧面可见', ['eye', 'low', 'oblique'], '平视', '左斜', '直立', '底面', '正面＋右侧面'],
+      ['model-angle-08.png', '横放低角度、左侧面与底部条码面可见', ['low'], '轻微俯拍', '右斜', '侧躺', '侧面', '正面＋左侧面＋底面'],
+      ['model-angle-09.png', '横放高位俯拍、正面左侧与底部可见', ['highTop'], '高位俯拍', '右斜', '正面朝上平放', '背面', '正面＋左侧面＋底面'],
+      ['model-angle-10.png', '横放近垂直俯拍、正面为主', ['highTop'], '高位俯拍', '正面', '正面朝上平放', '背面', '正面'],
+      ['model-angle-11.png', '横放高位俯拍、正面左侧与底部条码面可见', ['highTop'], '高位俯拍', '右斜', '正面朝上平放', '背面', '正面＋左侧面＋底面'],
+      ['model-angle-12.png', '横放垂直俯拍、完整正面可见', ['highTop'], '高位俯拍', '正面', '正面朝上平放', '背面', '正面']
+    ].map(([file, label, compatibleCameraTypes, cameraAngle, subjectOrientation, pose, supportFace, visibleFaces]) => ({ file, label, compatibleCameraTypes, cameraAngle, subjectOrientation, pose, supportFace, visibleFaces })),
     comboAngleFiles: [
-      ['combo-angle-01.png', '正面偏左、轻微俯拍', ['slightTop', 'oblique'], '轻微俯拍', '左斜'],
-      ['combo-angle-02.png', '正面偏左、高位俯拍', ['highTop', 'oblique'], '高位俯拍', '左斜'],
-      ['combo-angle-03.png', '正面右斜、接近平视', ['eye', 'slightTop'], '平视', '右斜'],
-      ['combo-angle-04.png', '斜放正面偏右、高位俯拍', ['highTop', 'oblique'], '高位俯拍', '右斜'],
-      ['combo-angle-05.png', '正面、高位俯拍', ['highTop'], '高位俯拍', '正面'],
-      ['combo-angle-06.png', '正面、低位轻微俯拍', ['low', 'slightTop'], '轻微俯拍', '正面'],
-      ['combo-angle-07.png', '正面偏左约45°、接近平视', ['eye', 'oblique'], '平视', '左斜'],
-      ['combo-angle-08.png', '横放侧面、接近平视', ['eye', 'low'], '平视', '侧面'],
-      ['combo-angle-09.png', '斜放正面偏右、高位俯拍', ['highTop', 'oblique'], '高位俯拍', '右斜'],
-      ['combo-angle-10.png', '包装盒与药板正面朝上平放、高位俯拍', ['highTop'], '高位俯拍', '正面'],
-      ['combo-angle-11.png', '横放底面朝前、低位俯拍', ['low'], '轻微俯拍', '右斜'],
-      ['combo-angle-12.png', '包装盒与药板正面朝上平放、轻微俯拍', ['slightTop'], '轻微俯拍', '正面']
-    ].map(([file, label, compatibleCameraTypes, cameraAngle, subjectOrientation]) => ({ file, label, compatibleCameraTypes, cameraAngle, subjectOrientation })),
+      ['combo-angle-01.png', '正面偏左、轻微俯拍', ['slightTop', 'oblique'], '轻微俯拍', '左斜', '直立', '底面', '正面＋右侧面'],
+      ['combo-angle-02.png', '正面偏左、高位俯拍', ['highTop', 'oblique'], '高位俯拍', '左斜', '直立', '底面', '正面＋顶面＋右侧面'],
+      ['combo-angle-03.png', '正面右斜、接近平视', ['eye', 'slightTop'], '平视', '右斜', '直立', '底面', '正面＋左侧面'],
+      ['combo-angle-04.png', '斜放正面偏右、高位俯拍', ['highTop', 'oblique'], '高位俯拍', '右斜', '正面朝上平放', '背面', '正面＋左侧面'],
+      ['combo-angle-05.png', '正面、高位俯拍', ['highTop'], '高位俯拍', '正面', '直立', '底面', '正面＋顶面'],
+      ['combo-angle-06.png', '正面、低位轻微俯拍', ['low', 'slightTop'], '轻微俯拍', '正面', '直立', '底面', '正面'],
+      ['combo-angle-07.png', '正面偏左约45°、接近平视', ['eye', 'oblique'], '平视', '左斜', '直立', '底面', '正面＋右侧面'],
+      ['combo-angle-08.png', '横放侧面、接近平视', ['eye', 'low'], '平视', '侧面', '侧躺', '侧面', '侧面＋底面'],
+      ['combo-angle-09.png', '斜放正面偏右、高位俯拍', ['highTop', 'oblique'], '高位俯拍', '右斜', '正面朝上平放', '背面', '正面＋左侧面'],
+      ['combo-angle-10.png', '包装盒与药板正面朝上平放、高位俯拍', ['highTop'], '高位俯拍', '正面', '正面朝上平放', '背面', '正面'],
+      ['combo-angle-11.png', '横放底面朝前、低位俯拍', ['low'], '轻微俯拍', '右斜', '侧躺', '侧面', '正面＋底面'],
+      ['combo-angle-12.png', '包装盒与药板正面朝上平放、轻微俯拍', ['slightTop'], '轻微俯拍', '正面', '正面朝上平放', '背面', '正面']
+    ].map(([file, label, compatibleCameraTypes, cameraAngle, subjectOrientation, pose, supportFace, visibleFaces]) => ({ file, label, compatibleCameraTypes, cameraAngle, subjectOrientation, pose, supportFace, visibleFaces })),
     blister: { file: 'ref-%E8%8D%AF%E6%9D%BF.png', label: '完整药板' },
     tablet: { file: 'ref-%E8%8D%AF%E7%89%87.png', label: '单颗药片' },
     root: productRoot
@@ -8035,11 +8035,26 @@
 (function registerSceneAnalysisService(studio) {
   'use strict';
 
-  const storageKey = 'bayer-scene-fingerprints-v1';
+  // v2 separates environmental structure from the original product, so legacy
+  // fingerprints can no longer leak pills, bottles or holders into prompts.
+  const storageKey = 'bayer-scene-fingerprints-v2';
 
   function apiBaseUrl() {
     const configured = document.querySelector('meta[name="bayer-api-base"]')?.content?.trim() || '';
     return configured.replace(/\/$/, '');
+  }
+
+  function publicBaseUrl() {
+    return document.querySelector('meta[name="bayer-public-base"]')?.content?.trim().replace(/\/$/, '') || '';
+  }
+
+  function imageRequestUrl(imagePath) {
+    const path = String(imagePath || '');
+    if (/^https?:\/\//i.test(path)) return path;
+    if (location.protocol !== 'file:') return encodeURI(path);
+    const publicBase = publicBaseUrl();
+    if (!publicBase) throw new Error('本地预览尚未配置公开素材地址');
+    return encodeURI(`${publicBase}/${path.replace(/^\.\//, '').replace(/^\//, '')}`);
   }
 
   function all() {
@@ -8067,7 +8082,7 @@
   }
 
   async function imageDataUrl(imagePath) {
-    const response = await fetch(encodeURI(imagePath));
+    const response = await fetch(imageRequestUrl(imagePath));
     if (!response.ok) throw new Error(`读取场景图片失败（${response.status}）`);
     return blobToDataUrl(await response.blob());
   }
@@ -8079,36 +8094,125 @@
     }
     const baseUrl = apiBaseUrl();
     if (!baseUrl) throw new Error('尚未配置 Gemini 服务端地址');
-    const response = await fetch(`${baseUrl}/api/analyze-scene`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        sceneId: item.id,
-        imageDataUrl: await imageDataUrl(item.image),
-        knownTags: {
-          style: item.style,
-          scene: item.scene,
-          format: item.format,
-          cameraAngle: item.cameraAngle,
-          subjectOrientation: item.subjectOrientation
-        }
-      })
-    });
+    let response;
+    try {
+      response = await fetch(`${baseUrl}/api/analyze-scene`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sceneId: item.id,
+          imageDataUrl: await imageDataUrl(item.image),
+          knownTags: {
+            style: item.style,
+            scene: item.scene,
+            format: item.format,
+            cameraAngle: item.cameraAngle,
+            subjectOrientation: item.subjectOrientation
+          }
+        })
+      });
+    } catch (error) {
+      const hint = location.protocol === 'file:' ? '（本地页面请求被浏览器拦截，请部署支持本地来源的新版 Worker）' : '';
+      throw new Error(`无法连接 Gemini 服务${hint}：${error.message}`);
+    }
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(payload.error || `Gemini 场景分析失败（${response.status}）`);
     if (!payload.fingerprint) throw new Error('Gemini 未返回场景指纹');
     return save(item.id, payload.fingerprint);
   }
 
-  function promptGuide(fingerprint) {
-    if (!fingerprint) return '';
-    if (typeof fingerprint.promptGuide === 'string' && fingerprint.promptGuide.trim()) return fingerprint.promptGuide.trim();
-    const keep = Array.isArray(fingerprint.preserve) ? fingerprint.preserve.join('；') : '';
-    const change = Array.isArray(fingerprint.change) ? fingerprint.change.join('；') : '';
-    return [fingerprint.summary, keep && `重点保留：${keep}`, change && `允许变化：${change}`].filter(Boolean).join('。');
+  function stripOriginalProduct(text) {
+    const productPattern = /药片|胶囊|药板|泡罩|保健品|补剂|营养品|产品瓶|药瓶|包装瓶|包装盒|原产品|托药|盛药|装药/;
+    return String(text || '')
+      .split(/(?<=[。；;\n])/)
+      .filter(sentence => !productPattern.test(sentence))
+      .join('')
+      .trim();
   }
 
-  studio.services.sceneAnalysis = { apiBaseUrl, get, save, analyze, promptGuide };
+  function promptGuide(fingerprint) {
+    if (!fingerprint) return '';
+    if (typeof fingerprint.environmentGuide === 'string' && fingerprint.environmentGuide.trim()) return fingerprint.environmentGuide.trim();
+    if (fingerprint.environment && typeof fingerprint.environment.promptGuide === 'string') return fingerprint.environment.promptGuide.trim();
+    if (typeof fingerprint.promptGuide === 'string' && fingerprint.promptGuide.trim()) return stripOriginalProduct(fingerprint.promptGuide);
+    const keep = Array.isArray(fingerprint.preserve) ? fingerprint.preserve.join('；') : '';
+    const change = Array.isArray(fingerprint.change) ? fingerprint.change.join('；') : '';
+    return [stripOriginalProduct(fingerprint.summary), keep && `重点保留：${stripOriginalProduct(keep)}`, change && `允许变化：${stripOriginalProduct(change)}`].filter(Boolean).join('。');
+  }
+
+  function productPose(fingerprint) {
+    return fingerprint?.sourceProduct || fingerprint?.product || null;
+  }
+
+  async function health() {
+    const baseUrl = apiBaseUrl();
+    if (!baseUrl) return { ok: false, geminiConfigured: false, error: '尚未配置服务端地址' };
+    try {
+      const response = await fetch(`${baseUrl}/api/health`, { cache: 'no-store' });
+      const payload = await response.json().catch(() => ({}));
+      return response.ok ? payload : { ok: false, error: payload.error || `服务端检测失败（${response.status}）` };
+    } catch (error) {
+      return { ok: false, error: `无法连接服务端：${error.message}` };
+    }
+  }
+
+  studio.services.sceneAnalysis = { apiBaseUrl, publicBaseUrl, imageRequestUrl, get, save, analyze, health, promptGuide, productPose, stripOriginalProduct };
+})(globalThis.BayerStudio);
+
+
+(function registerImageGenerationService(studio) {
+  'use strict';
+
+  const userKey = 'bayer-anonymous-user-v1';
+
+  function anonymousUserId() {
+    let id = studio.services.storage.read(userKey, '');
+    if (!id) {
+      id = globalThis.crypto?.randomUUID?.() || `user-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      studio.services.storage.write(userKey, id);
+    }
+    return id;
+  }
+
+  function absoluteAssetUrl(path) {
+    const value = String(path || '');
+    if (/^https?:\/\//i.test(value)) return value;
+    const publicBase = studio.services.sceneAnalysis.publicBaseUrl();
+    if (!publicBase) throw new Error('尚未配置公开素材地址');
+    return encodeURI(`${publicBase}/${value.replace(/^\.\//, '').replace(/^\//, '')}`);
+  }
+
+  function referencesFor(result) {
+    return [
+      { role: 'scene', label: `场景参考 ${result.item.id}`, url: absoluteAssetUrl(result.item.image) },
+      { role: 'product', label: `唯一产品参考 ${result.productReference.label}`, url: absoluteAssetUrl(result.productReference.image) },
+      ...result.selectedProps.map(prop => ({ role: 'prop', label: `道具参考 ${prop.label}`, url: absoluteAssetUrl(prop.image) }))
+    ];
+  }
+
+  async function generate(result, options = {}) {
+    const baseUrl = studio.services.sceneAnalysis.apiBaseUrl();
+    if (!baseUrl) throw new Error('尚未配置生图服务端地址');
+    const count = studio.utils.clamp(options.count || 1, 1, 5);
+    const response = await fetch(`${baseUrl}/api/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userId: anonymousUserId(),
+        prompt: result.text,
+        count,
+        ratio: options.ratio || studio.state.prompt.ratio || '3:4',
+        quality: options.quality === 'high' ? 'high' : 'medium',
+        references: referencesFor(result)
+      })
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(payload.error || `GPT 生图失败（${response.status}）`);
+    if (!Array.isArray(payload.images) || !payload.images.length) throw new Error('GPT 未返回图片');
+    return payload;
+  }
+
+  studio.services.imageGeneration = { anonymousUserId, absoluteAssetUrl, referencesFor, generate };
 })(globalThis.BayerStudio);
 
 
@@ -8151,70 +8255,109 @@
   'use strict';
   const { textHash } = studio.utils;
 
-  function compatibleAngles(files, cameraType) {
-    return files.filter(angle => angle.compatibleCameraTypes.includes(cameraType));
+  const cameraRanks = { '低机位仰拍': 0, '平视': 1, '轻微俯拍': 2, '高位俯拍': 3 };
+  const poseRanks = { '直立': 0, '侧躺': 1, '正面朝上平放': 2 };
+
+  function normalizePose(value) {
+    const text = String(value || '');
+    if (/手持/.test(text)) return '手持';
+    if (/正面朝上|平放|俯拍平躺/.test(text)) return '正面朝上平放';
+    if (/侧躺|横放|躺放/.test(text)) return '侧躺';
+    if (/直立|竖立|立放|站立/.test(text)) return '直立';
+    return '';
   }
 
-  const cameraRanks = { '低机位仰拍': 0, '平视': 1, '轻微俯拍': 2, '高位俯拍': 3 };
+  function sourceProduct(fingerprint) {
+    return fingerprint?.sourceProduct || fingerprint?.product || null;
+  }
 
-  function chooseCatalogAngle(files, item, variation, variantIndex, salt) {
+  function desiredPose(item, fingerprint) {
+    const source = sourceProduct(fingerprint);
+    const detected = normalizePose(source?.pose || source?.placement || '');
+    if (detected === '手持') return '直立';
+    if (detected) return detected;
+    if (item.format === '手持' || item.shot === '手持') return '直立';
+    return '';
+  }
+
+  function cameraDistance(candidate, target) {
+    if (!target) return 0;
+    return Math.abs((cameraRanks[candidate] ?? 1) - (cameraRanks[target] ?? 1));
+  }
+
+  function poseDistance(candidate, target) {
+    if (!target) return 0;
+    if (candidate === target) return 0;
+    return Math.abs((poseRanks[candidate] ?? 1) - (poseRanks[target] ?? 1)) + 1;
+  }
+
+  function facePenalty(candidate, desired) {
+    if (!desired) return 0;
+    const faces = String(desired).split(/[＋+、,，]/).filter(Boolean);
+    if (!faces.length) return 0;
+    return faces.some(face => String(candidate || '').includes(face)) ? 0 : 1;
+  }
+
+  function chooseCatalogAngle(files, item, variation, variantIndex, salt, fingerprint) {
     const cameraType = variation.cameraType || 'slightTop';
-    let candidates = compatibleAngles(files, cameraType);
-    let cameraMatch = 'planned';
-    let orientationMatch = 'unrestricted';
-    if (item.cameraAngle) {
-      const exactCamera = files.filter(angle => angle.cameraAngle === item.cameraAngle);
-      if (exactCamera.length) {
-        candidates = exactCamera;
-        cameraMatch = 'exact';
-      } else {
-        const targetRank = cameraRanks[item.cameraAngle];
-        const nearestDistance = Math.min(...files.map(angle => Math.abs((cameraRanks[angle.cameraAngle] ?? 1) - targetRank)));
-        candidates = files.filter(angle => Math.abs((cameraRanks[angle.cameraAngle] ?? 1) - targetRank) === nearestDistance);
-        cameraMatch = 'nearest';
-      }
-      if (item.subjectOrientation && item.subjectOrientation !== '不限') {
-        const exactOrientation = candidates.filter(angle => angle.subjectOrientation === item.subjectOrientation);
-        if (exactOrientation.length) {
-          candidates = exactOrientation;
-          orientationMatch = 'exact';
-        } else {
-          orientationMatch = 'unavailable';
-        }
-      }
-    }
-    if (!candidates.length) candidates = files;
-    const selected = candidates[textHash(`${salt}|${item.id}|${variation.position}|${variantIndex}`) % candidates.length];
+    const source = sourceProduct(fingerprint);
+    const targetPose = desiredPose(item, fingerprint);
+    const targetCamera = source?.cameraAngle || item.cameraAngle || '';
+    const targetOrientation = source?.orientation || source?.subjectOrientation || item.subjectOrientation || '';
+    const targetFaces = source?.visibleFaces || '';
+
+    const scored = files.map(angle => {
+      const parts = {
+        pose: poseDistance(angle.pose, targetPose) * 100,
+        camera: cameraDistance(angle.cameraAngle, targetCamera) * 12,
+        orientation: targetOrientation && targetOrientation !== '不限' && angle.subjectOrientation !== targetOrientation ? 5 : 0,
+        faces: facePenalty(angle.visibleFaces, targetFaces) * 3,
+        plannedCamera: angle.compatibleCameraTypes.includes(cameraType) ? 0 : 2
+      };
+      return { angle, parts, score: Object.values(parts).reduce((sum, value) => sum + value, 0) };
+    });
+    const bestScore = Math.min(...scored.map(entry => entry.score));
+    const candidates = scored.filter(entry => entry.score === bestScore);
+    const picked = candidates[textHash(`${salt}|${item.id}|${variation.position}|${variantIndex}`) % candidates.length];
+    const selected = picked.angle;
+    const cameraMatch = targetCamera ? (selected.cameraAngle === targetCamera ? 'exact' : 'nearest') : 'planned';
+    const orientationMatch = !targetOrientation || targetOrientation === '不限' ? 'unrestricted' : (selected.subjectOrientation === targetOrientation ? 'exact' : 'nearest');
+    const poseMatch = targetPose ? (selected.pose === targetPose ? 'exact' : 'nearest') : 'unrestricted';
+    const reasonParts = [];
+    if (targetPose) reasonParts.push(poseMatch === 'exact' ? `物理姿态“${targetPose}”精确匹配` : `暂无“${targetPose}”实拍图，自动采用最接近的“${selected.pose}”`);
+    if (targetCamera) reasonParts.push(cameraMatch === 'exact' ? `机位“${targetCamera}”精确匹配` : `暂无“${targetCamera}”产品实拍图，机位自动采用最接近的“${selected.cameraAngle}”`);
+    if (targetOrientation && targetOrientation !== '不限') reasonParts.push(orientationMatch === 'exact' ? `朝向“${targetOrientation}”精确匹配` : `朝向自动采用最接近的“${selected.subjectOrientation}”`);
+    if (!reasonParts.length) reasonParts.push(`方案机位“${variation.camera}”匹配 ${cameraType} 实拍角度组`);
     return {
       ...selected,
       cameraType,
       cameraMatch,
       orientationMatch,
-      reason: item.cameraAngle
-        ? cameraMatch === 'exact'
-          ? `场景机位“${item.cameraAngle}”已匹配${orientationMatch === 'unavailable' ? '；指定主体朝向暂无对应实拍图' : `；主体朝向“${item.subjectOrientation || '不限'}”`}`
-          : `暂无“${item.cameraAngle}”产品实拍图，使用最接近的“${selected.cameraAngle}”机位`
-        : `方案机位“${variation.camera}”匹配 ${cameraType} 实拍角度组`
+      poseMatch,
+      desiredPose: targetPose,
+      score: picked.score,
+      scoreParts: picked.parts,
+      reason: reasonParts.join('；')
     };
   }
 
-  function chooseAngle(item, variation, variantIndex) {
-    return chooseCatalogAngle(studio.data.products.angleFiles, item, variation, variantIndex, 'box');
+  function chooseAngle(item, variation, variantIndex, fingerprint) {
+    return chooseCatalogAngle(studio.data.products.angleFiles, item, variation, variantIndex, 'box', fingerprint);
   }
 
-  function chooseComboAngle(item, variation, variantIndex) {
-    return chooseCatalogAngle(studio.data.products.comboAngleFiles, item, variation, variantIndex, 'box-blister');
+  function chooseComboAngle(item, variation, variantIndex, fingerprint) {
+    return chooseCatalogAngle(studio.data.products.comboAngleFiles, item, variation, variantIndex, 'box-blister', fingerprint);
   }
 
-  function productReference(item, variation, variantIndex, combo) {
+  function productReference(item, variation, variantIndex, combo, fingerprint) {
     const products = studio.data.products;
     if (combo === '包装盒＋药板') {
-      const angle = chooseComboAngle(item, variation, variantIndex);
+      const angle = chooseComboAngle(item, variation, variantIndex, fingerprint);
       return { image: products.root + angle.file, label: `包装盒＋药板 · ${angle.label}`, angle, kind: 'box-blister' };
     }
     if (combo === '药板') return { image: products.root + products.blister.file, label: products.blister.label, kind: 'blister' };
     if (combo === '药片') return { image: products.root + products.tablet.file, label: products.tablet.label, kind: 'tablet' };
-    const angle = chooseAngle(item, variation, variantIndex);
+    const angle = chooseAngle(item, variation, variantIndex, fingerprint);
     return { image: products.root + angle.file, label: `包装盒 · ${angle.label}`, angle, kind: 'box' };
   }
 
@@ -8339,18 +8482,29 @@
       : hasHand && productReference.kind === 'box-blister'
         ? '包装盒与药板各自由可见手部支撑，或分别真实接触硬质桌面；任何单独产品都不得悬空'
         : '真实桌面接触';
-    return `仅使用这一张产品参考图，产品必须保持其中的${angleText}、朝向、轮廓、透视、可见表面和比例。画面中的纵向或横向排列只表示图像平面方向，产品在三维空间中的承托关系必须服从${support}。若场景机位与产品参考图冲突，优先选择与场景机位及主体朝向一致的产品实拍图；不得旋转推演、三维重建、拉宽、压扁或虚构不可见表面。`;
+    const physicalPose = productReference.angle ? `产品图已按原场景的真实摆放姿态自动匹配为“${productReference.angle.pose}”，以“${productReference.angle.supportFace}”承托，可见“${productReference.angle.visibleFaces}”` : '';
+    return `仅使用这一张产品参考图，产品必须保持其中的${angleText}、朝向、轮廓、透视、可见表面和比例。${physicalPose}。画面中的纵向或横向排列只表示图像平面方向，产品在三维空间中的承托关系必须服从${support}。若没有完全一致的实拍图，使用系统自动选出的物理姿态最接近图，不要求用户手动选择；不得旋转推演、三维重建、拉宽、压扁或虚构不可见表面。`;
   }
 
   function selectedPropRule(selectedProps) {
     if (!selectedProps.length) return '本次没有选择额外道具：场景物件仅沿用参考图中已有的类别，但必须改变具体款式和摆放位置，不得凭空添加其他道具、容器、食物或未选择的产品形态。';
-    return `只额外加入所选白底道具参考图中的${selectedProps.map(prop => prop.label).join('、')}，保持其外观、颜色、材质和设计，不对道具本身进行改造；其他场景物件仅沿用原有类别，同时更换具体款式与摆放位置，不得自行添加其他道具或未选择的产品形态。`;
+    return `所选白底道具图是“外观身份库”，不是构图或摆放模板。可根据参考场景原有疏密，从${selectedProps.map(prop => prop.label).join('、')}的组合图中只采用适量的一部分；凡实际采用的物件，必须完整还原其品牌、包装款式、颜色、材质、比例和设计，不对道具本身进行改造，不得混款。禁止复制白底图中的排列、间距、朝向和统一立放方式，必须按真实用途重新摆放：气垫、粉饼、眼影盘等以稳定底面平放或自然打开平放；软管通常盖子朝下稳定放置或横放；香水、乳液瓶和罐体以底面直立；口红、刷具和笔状物横放或放入合适收纳；任何物件不得靠窄边无支撑站立、悬空、互相穿插，并须具有贴近承托面的自然接触阴影。其他场景物件只沿用原有类别，同时更换具体款式与小范围位置，不得自行添加未选择的产品形态。`;
+  }
+
+  function productFormFirewall(combo) {
+    const allowed = {
+      '包装盒＋药板': '只允许一个包装盒和一板完整药板',
+      '包装盒': '只允许一个包装盒；禁止药板、散装药片、胶囊、药瓶及任何盛放它们的碟子、托盘或专用容器',
+      '药板': '只允许一板完整药板；禁止包装盒、散装药片、胶囊、药瓶及任何盛放它们的专用容器',
+      '药片': '只允许一颗药片；禁止包装盒、药板、药瓶和额外药片'
+    };
+    return `产品形态防串线规则（优先级高于场景指纹）：${allowed[combo]}。场景参考图里原产品及其附属物仅用于识别原主体位置与占比，必须从新画面中彻底移除；不得把参考图中的药片、胶囊、药板、原品牌包装、瓶盖、药碟或专用托盘当作环境道具保留。若Gemini场景描述与本规则冲突，忽略冲突内容。`;
   }
 
   function generatePrompt(input) {
     const { item, variantIndex, combo, ratio, selectedProps = [], sceneFingerprint = null } = input;
     const variation = studio.prompt.planVariation(item, variantIndex);
-    const productReference = studio.prompt.productReference(item, variation, variantIndex, combo);
+    const productReference = studio.prompt.productReference(item, variation, variantIndex, combo, sceneFingerprint);
     const hasHand = referenceHasHand(item);
     const reverseReference = shouldReverseReference(item);
     const fingerprintGuide = sceneFingerprint ? studio.services.sceneAnalysis?.promptGuide(sceneFingerprint) : '';
@@ -8358,6 +8512,7 @@
       '先在内部核对第一张场景参考图及其场景指纹，不输出分析过程，再进行同风格、同结构尺度但非复制品的倒推式重建。整体视觉关系约70%保留、约30%变化；禁止把“不得复制”理解为重新设计场景，也禁止只在原图上替换产品。',
       fingerprintGuide ? `Gemini场景指纹（优先执行）：${fingerprintGuide}` : '场景指纹暂缺：直接从第一张场景参考图识别并锁定机位、裁切、空间分区、主体占比、物件类别与数量级、光线、景深和画面疏密。',
       reverseReference ? studio.prompt.rules.reverseEnvironment : studio.prompt.rules.environment,
+      productFormFirewall(combo),
       studio.prompt.rules.subjectRule(combo, hasHand),
       handRule(item, variation),
       orientationRule(productReference, hasHand),
@@ -8631,6 +8786,8 @@
 (function registerModelingFeature(studio) {
   'use strict';
   const editKey = 'bayer-product-model-angle-edits-v1';
+  const poseOptions = ['直立', '侧躺', '正面朝上平放'];
+  const supportFaceOptions = ['底面', '侧面', '背面', '手部'];
   let editingFile = null;
 
   function initialize() {
@@ -8645,14 +8802,14 @@
       studio.services.storage.write(correctionKey, true);
     }
     [...studio.data.products.angleFiles, ...studio.data.products.comboAngleFiles].forEach(angle => {
-      angle.original = { label: angle.label, cameraAngle: angle.cameraAngle, subjectOrientation: angle.subjectOrientation };
+      angle.original = { label: angle.label, cameraAngle: angle.cameraAngle, subjectOrientation: angle.subjectOrientation, pose: angle.pose, supportFace: angle.supportFace, visibleFaces: angle.visibleFaces };
       if (saved[angle.file]) Object.assign(angle, saved[angle.file]);
     });
   }
 
   function payload() {
     const products = studio.data.products;
-    return { schema: 'bayer-product-model-angles-v1', exportedAt: new Date().toISOString(), items: [...products.angleFiles, ...products.comboAngleFiles].map(item => ({ file: item.file, label: item.label, cameraAngle: item.cameraAngle, subjectOrientation: item.subjectOrientation })) };
+    return { schema: 'bayer-product-model-angles-v2', exportedAt: new Date().toISOString(), items: [...products.angleFiles, ...products.comboAngleFiles].map(item => ({ file: item.file, label: item.label, cameraAngle: item.cameraAngle, subjectOrientation: item.subjectOrientation, pose: item.pose, supportFace: item.supportFace, visibleFaces: item.visibleFaces })) };
   }
 
   function download() {
@@ -8662,7 +8819,7 @@
 
   function persist(angle) {
     const saved = studio.services.storage.read(editKey, {});
-    saved[angle.file] = { label: angle.label, cameraAngle: angle.cameraAngle, subjectOrientation: angle.subjectOrientation };
+    saved[angle.file] = { label: angle.label, cameraAngle: angle.cameraAngle, subjectOrientation: angle.subjectOrientation, pose: angle.pose, supportFace: angle.supportFace, visibleFaces: angle.visibleFaces };
     studio.services.storage.write(editKey, saved);
   }
 
@@ -8671,8 +8828,8 @@
     const angles = products.angleFiles.map(angle => ({ image: products.root + angle.file, ...angle }));
     const comboAngles = products.comboAngleFiles.map(angle => ({ image: products.root + angle.file, ...angle }));
     const generationReferences = [products.blister, products.tablet].map(reference => ({ image: products.root + reference.file, label: reference.label }));
-    const editor = item => `<div class="model-angle-editor"><label>角度描述<input data-model-label value="${studio.utils.escapeHtml(item.label)}"></label><label>拍摄机位<select data-model-camera>${studio.data.classification.cameraAngles.map(value => `<option${value === item.cameraAngle ? ' selected' : ''}>${value}</option>`).join('')}</select></label><label>产品朝向<select data-model-orientation>${studio.data.classification.subjectOrientations.map(value => `<option${value === item.subjectOrientation ? ' selected' : ''}>${value}</option>`).join('')}</select></label><div class="actions"><button class="action" data-model-cancel>取消</button><button class="action primary" data-model-save="${item.file}">保存角度</button></div></div>`;
-    const cards = items => items.map(product => `<article class="product-card" data-model-file="${product.file || ''}"><img src="${product.image}" alt="${studio.utils.escapeHtml(product.label)}"><span>${studio.utils.escapeHtml(product.label)}</span>${product.cameraAngle ? `<div class="tags modeling-tags"><span class="tag">机位:${product.cameraAngle}</span><span class="tag">朝向:${product.subjectOrientation}</span></div><div class="model-card-actions"><button class="action" data-model-edit="${product.file}">编辑分类</button></div>${editingFile === product.file ? editor(product) : ''}` : ''}</article>`).join('');
+    const editor = item => `<div class="model-angle-editor"><label>角度描述<input data-model-label value="${studio.utils.escapeHtml(item.label)}"></label><label>拍摄机位<select data-model-camera>${studio.data.classification.cameraAngles.map(value => `<option${value === item.cameraAngle ? ' selected' : ''}>${value}</option>`).join('')}</select></label><label>产品朝向<select data-model-orientation>${studio.data.classification.subjectOrientations.map(value => `<option${value === item.subjectOrientation ? ' selected' : ''}>${value}</option>`).join('')}</select></label><label>真实摆放姿态<select data-model-pose>${poseOptions.map(value => `<option${value === item.pose ? ' selected' : ''}>${value}</option>`).join('')}</select></label><label>承托面<select data-model-support>${supportFaceOptions.map(value => `<option${value === item.supportFace ? ' selected' : ''}>${value}</option>`).join('')}</select></label><label>可见包装面<input data-model-faces value="${studio.utils.escapeHtml(item.visibleFaces || '')}" placeholder="例如：正面＋右侧面"></label><div class="actions"><button class="action" data-model-cancel>取消</button><button class="action primary" data-model-save="${item.file}">保存分类</button></div></div>`;
+    const cards = items => items.map(product => `<article class="product-card" data-model-file="${product.file || ''}"><img src="${product.image}" alt="${studio.utils.escapeHtml(product.label)}"><span>${studio.utils.escapeHtml(product.label)}</span>${product.cameraAngle ? `<div class="tags modeling-tags"><span class="tag">机位:${product.cameraAngle}</span><span class="tag">朝向:${product.subjectOrientation}</span><span class="tag">姿态:${product.pose}</span><span class="tag">承托:${product.supportFace}</span><span class="tag">可见:${studio.utils.escapeHtml(product.visibleFaces || '未标')}</span></div><div class="model-card-actions"><button class="action" data-model-edit="${product.file}">编辑分类</button></div>${editingFile === product.file ? editor(product) : ''}` : ''}</article>`).join('');
     container.innerHTML = `<header class="page-head"><div class="eyebrow">PRODUCT MODELING</div><h1>产品建模</h1><p class="subtitle">产品实拍角度可人工编辑；修改后立即影响唯一产品参考图自动匹配。</p></header><div class="toolbar"><div class="axis"><b>产品</b><button class="pill active">时光片</button></div><div class="actions"><button class="action primary" id="exportModelAngles">导出建模分类</button><button class="action" id="importModelAngles">导入建模分类</button><input id="modelAngleFile" type="file" accept=".json,application/json" hidden></div></div><h3 class="section-title">标准母版 · 6 张</h3><section class="product-grid">${cards(products.gallery)}</section><h3 class="section-title">药板与药片单图参考 · 2 张</h3><section class="product-grid">${cards(generationReferences)}</section><h3 class="section-title">包装盒生成角度 · 12 张</h3><section class="product-grid">${cards(angles)}</section><h3 class="section-title">包装盒＋药板真实组合角度 · 12 张</h3><section class="product-grid">${cards(comboAngles)}</section>`;
     container.querySelectorAll('[data-model-edit]').forEach(button => button.onclick = () => { editingFile = button.dataset.modelEdit; render(container); });
     container.querySelectorAll('[data-model-cancel]').forEach(button => button.onclick = () => { editingFile = null; render(container); });
@@ -8682,6 +8839,9 @@
       angle.label = card.querySelector('[data-model-label]').value.trim() || angle.label;
       angle.cameraAngle = card.querySelector('[data-model-camera]').value;
       angle.subjectOrientation = card.querySelector('[data-model-orientation]').value;
+      angle.pose = card.querySelector('[data-model-pose]').value;
+      angle.supportFace = card.querySelector('[data-model-support]').value;
+      angle.visibleFaces = card.querySelector('[data-model-faces]').value.trim() || angle.visibleFaces;
       persist(angle); editingFile = null; studio.state.prompt.results = []; render(container);
     });
     container.querySelector('#exportModelAngles').onclick = download;
@@ -8692,7 +8852,7 @@
         const imported = JSON.parse(await event.target.files[0].text());
         const known = new Map([...products.angleFiles, ...products.comboAngleFiles].map(item => [item.file, item]));
         let count = 0;
-        (imported.items || []).forEach(row => { const angle = known.get(row.file); if (!angle) return; if (row.label) angle.label = row.label; if (studio.data.classification.cameraAngles.includes(row.cameraAngle)) angle.cameraAngle = row.cameraAngle; if (studio.data.classification.subjectOrientations.includes(row.subjectOrientation)) angle.subjectOrientation = row.subjectOrientation; persist(angle); count += 1; });
+        (imported.items || []).forEach(row => { const angle = known.get(row.file); if (!angle) return; if (row.label) angle.label = row.label; if (studio.data.classification.cameraAngles.includes(row.cameraAngle)) angle.cameraAngle = row.cameraAngle; if (studio.data.classification.subjectOrientations.includes(row.subjectOrientation)) angle.subjectOrientation = row.subjectOrientation; if (poseOptions.includes(row.pose)) angle.pose = row.pose; if (supportFaceOptions.includes(row.supportFace)) angle.supportFace = row.supportFace; if (row.visibleFaces) angle.visibleFaces = row.visibleFaces; persist(angle); count += 1; });
         if (!count) throw new Error('没有匹配的产品建模参考图');
         editingFile = null; studio.state.prompt.results = []; render(container); alert(`已导入 ${count} 张产品建模角度分类。`);
       } catch (error) { alert(`导入失败：${error.message}`); }
@@ -8845,10 +9005,10 @@
         ...result.selectedProps.map(prop => ({ image: prop.image, label: `道具参考 · ${prop.label}` }))
       ];
       const validation = validationMarkup(validationFor(result.text, result.item, state.combo));
-      const angleWarning = result.productReference.angle && result.productReference.angle.cameraMatch === 'nearest'
+      const angleWarning = result.productReference.angle && (result.productReference.angle.cameraMatch === 'nearest' || result.productReference.angle.poseMatch === 'nearest')
         ? `<div class="validation-error">${studio.utils.escapeHtml(result.productReference.angle.reason)}</div>` : '';
       const fingerprintState = result.sceneFingerprint ? 'Gemini场景指纹已应用' : '未取得Gemini场景指纹，当前使用70/30基础规则';
-      return `<article class="prompt-result" data-result="${result.key}"><div class="references">${references.map(reference => `<figure><img src="${studio.utils.escapeHtml(reference.image)}" alt="${studio.utils.escapeHtml(reference.label)}"><figcaption>${studio.utils.escapeHtml(reference.label)}</figcaption></figure>`).join('')}</div><div><div class="result-meta">${result.item.id} · 差异方案 ${result.variantIndex + 1} / ${state.count}</div><div class="count">场景机位 ${result.item.cameraAngle || '平视'} · 主体朝向 ${result.item.subjectOrientation || '不限'} · ${result.productReference.angle ? '产品机位 ' + result.productReference.angle.cameraAngle : result.productReference.label}</div><div class="scene-analysis-state ${result.sceneFingerprint ? 'ready' : 'fallback'}">${fingerprintState}</div>${angleWarning}${validation}<textarea rows="8">${studio.utils.escapeHtml(result.text)}</textarea><div class="actions"><button class="action" data-expand-prompt>展开全文</button><button class="action" data-copy>复制此条</button><button class="action" data-restore>恢复自动版本</button></div></div></article>`;
+      return `<article class="prompt-result" data-result="${result.key}"><div class="references">${references.map(reference => `<figure><img src="${studio.utils.escapeHtml(reference.image)}" alt="${studio.utils.escapeHtml(reference.label)}"><figcaption>${studio.utils.escapeHtml(reference.label)}</figcaption></figure>`).join('')}</div><div><div class="result-meta">${result.item.id} · 差异方案 ${result.variantIndex + 1} / ${state.count}</div><div class="count">场景机位 ${result.item.cameraAngle || '平视'} · 主体朝向 ${result.item.subjectOrientation || '不限'} · ${result.productReference.angle ? `产品机位 ${result.productReference.angle.cameraAngle} · 姿态 ${result.productReference.angle.pose} · 承托 ${result.productReference.angle.supportFace}` : result.productReference.label}</div><div class="scene-analysis-state ${result.sceneFingerprint ? 'ready' : 'fallback'}">${fingerprintState}</div>${angleWarning}${validation}<textarea rows="8">${studio.utils.escapeHtml(result.text)}</textarea><div class="actions"><button class="action" data-expand-prompt>展开全文</button><button class="action" data-copy>复制此条</button><button class="action" data-restore>恢复自动版本</button></div></div></article>`;
     }).join('')}</section>`;
   }
 
@@ -8940,10 +9100,87 @@
 
 (function registerGenerationFeature(studio) {
   'use strict';
-  function render(container) {
-    container.innerHTML = `<header class="page-head"><div class="eyebrow">IMAGE GENERATION</div><h1>图片生成</h1><p class="subtitle">提示词管线已就绪，此处将接入安全的服务端生图任务。</p></header><section class="placeholder"><h2>下一阶段</h2><p>接入图片生成 API、任务队列、批量进度、结果预览、筛选、重做、下载和历史记录。API Key 将只保存在服务端，不写入前端文件。</p></section>`;
+
+  function initialize() {
+    studio.state.generation = {
+      resultIndex: 0,
+      count: 1,
+      quality: 'medium',
+      running: false,
+      message: '',
+      health: null,
+      images: []
+    };
   }
-  studio.features.generation = { render };
+
+  function healthMarkup(health) {
+    if (!health) return '<span class="generation-status neutral">尚未检测服务端</span>';
+    if (!health.ok) return `<span class="generation-status error">${studio.utils.escapeHtml(health.error || '服务端不可用')}</span>`;
+    const gemini = health.geminiConfigured ? 'Gemini 已配置' : 'Gemini 未配置';
+    const openai = health.openaiConfigured ? 'GPT Image 已配置' : 'GPT Image 未配置';
+    const quota = health.quotaConfigured ? '额度存储已配置' : '额度存储未配置';
+    const ready = health.geminiConfigured && health.openaiConfigured && health.quotaConfigured;
+    return `<span class="generation-status ${ready ? 'ready' : 'warning'}">${gemini} · ${openai} · ${quota}</span>`;
+  }
+
+  function imageMarkup(image, index) {
+    const mimeType = image.mimeType || 'image/jpeg';
+    const src = `data:${mimeType};base64,${image.b64Json}`;
+    return `<figure class="generated-card"><img src="${src}" alt="生成结果 ${index + 1}"><figcaption><a class="action" href="${src}" download="bayer-shiguang-${Date.now()}-${index + 1}.${mimeType.includes('png') ? 'png' : 'jpg'}">下载原图</a></figcaption></figure>`;
+  }
+
+  function render(container) {
+    const state = studio.state.generation;
+    const results = studio.state.prompt.results || [];
+    state.resultIndex = Math.min(state.resultIndex, Math.max(0, results.length - 1));
+    const selected = results[state.resultIndex];
+    const options = results.map((result, index) => `<option value="${index}"${index === state.resultIndex ? ' selected' : ''}>${studio.utils.escapeHtml(result.item.id)} · 方案 ${result.variantIndex + 1}</option>`).join('');
+    const references = selected ? [
+      { image: selected.item.image, label: `场景 · ${selected.item.id}` },
+      { image: selected.productReference.image, label: `唯一产品 · ${selected.productReference.label}` },
+      ...selected.selectedProps.map(prop => ({ image: prop.image, label: `道具 · ${prop.label}` }))
+    ] : [];
+
+    container.innerHTML = `<header class="page-head"><div class="eyebrow">IMAGE GENERATION</div><h1>图片生成</h1><p class="subtitle">使用 GPT Image 2，根据已确认的场景指纹、唯一产品角度图和所选道具直接生成。</p></header>
+      <section class="generation-panel">
+        <div class="generation-health"><div>${healthMarkup(state.health)}</div><button class="action" id="checkGenerationHealth" ${state.running ? 'disabled' : ''}>检测接口</button></div>
+        ${selected ? `<div class="generation-controls"><label>提示词方案<select id="generationResult">${options}</select></label><label>生成张数<input id="generationCount" type="number" min="1" max="5" value="${state.count}"></label><label>质量<select id="generationQuality"><option value="medium"${state.quality === 'medium' ? ' selected' : ''}>测试 medium</option><option value="high"${state.quality === 'high' ? ' selected' : ''}>成片 high</option></select></label></div>
+          <div class="generation-references">${references.map(reference => `<figure><img src="${encodeURI(reference.image)}" alt="${studio.utils.escapeHtml(reference.label)}"><figcaption>${studio.utils.escapeHtml(reference.label)}</figcaption></figure>`).join('')}</div>
+          <label class="generation-prompt"><b>本次生图提示词</b><textarea id="generationPrompt" rows="10">${studio.utils.escapeHtml(selected.text)}</textarea></label>
+          <div class="generation-submit"><span>${studio.utils.escapeHtml(state.message || '每位用户每天最多30张；全站每天最多100张；单次1～5张。')}</span><button class="action primary" id="startGeneration" ${state.running ? 'disabled' : ''}>${state.running ? 'GPT 正在生成…' : '开始生成图片'}</button></div>`
+          : '<div class="generation-empty"><h2>还没有可生成的提示词</h2><p>请先进入“提示词”，选择场景和产品组合，完成 Gemini 倒推并生成提示词。</p></div>'}
+      </section>${state.images.length ? `<section class="generation-results"><h2>生成结果</h2><div class="generated-grid">${state.images.map(imageMarkup).join('')}</div></section>` : ''}`;
+
+    container.querySelector('#checkGenerationHealth').onclick = async () => {
+      state.message = '正在检测服务端配置…';
+      state.health = await studio.services.sceneAnalysis.health();
+      state.message = state.health.ok ? '接口检测完成。' : (state.health.error || '接口检测失败。');
+      render(container);
+    };
+    if (!selected) return;
+    container.querySelector('#generationResult').onchange = event => { state.resultIndex = Number(event.target.value); state.images = []; state.message = ''; render(container); };
+    container.querySelector('#generationCount').onchange = event => { state.count = studio.utils.clamp(event.target.value || 1, 1, 5); render(container); };
+    container.querySelector('#generationQuality').onchange = event => { state.quality = event.target.value; render(container); };
+    container.querySelector('#generationPrompt').oninput = event => { selected.text = event.target.value; };
+    container.querySelector('#startGeneration').onclick = async () => {
+      state.running = true;
+      state.images = [];
+      state.message = `正在提交 ${state.count} 张 ${state.quality} 图片，请不要关闭页面…`;
+      render(container);
+      try {
+        const payload = await studio.services.imageGeneration.generate(selected, { count: state.count, quality: state.quality, ratio: studio.state.prompt.ratio });
+        state.images = payload.images;
+        state.message = `生成完成：${payload.images.length} 张；个人今日已使用 ${payload.usage?.userDaily ?? '-'} / 30 张。`;
+      } catch (error) {
+        state.message = `生成失败：${error.message}`;
+      } finally {
+        state.running = false;
+        render(container);
+      }
+    };
+  }
+
+  studio.features.generation = { initialize, render };
 })(globalThis.BayerStudio);
 
 
@@ -8958,6 +9195,7 @@
   studio.features.library.initialize();
   studio.features.modeling.initialize();
   studio.features.promptWorkspace.initialize();
+  studio.features.generation.initialize();
   studio.state.currentView = 'library';
 
   const app = document.querySelector('#app');
