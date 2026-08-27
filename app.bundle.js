@@ -1,4 +1,4 @@
-/* Bayer Shiguang Visual Studio | generated 2026-08-27T03:06:32.898Z */
+/* Bayer Shiguang Visual Studio | generated 2026-08-27T09:45:36.329Z */
 (function bootstrapStudio(global) {
   'use strict';
   global.BayerStudio = global.BayerStudio || {
@@ -7942,7 +7942,10 @@
 (function registerCatalogs(studio) {
   'use strict';
 
-  const productRoot = 'public/products/%E6%97%B6%E5%85%89%E7%89%87/';
+  // Keep the source path readable and let each rendering/request boundary
+  // encode it once. Pre-encoding this directory caused encodeURI() in the
+  // generation page to turn "%E6" into "%25E6", breaking product images.
+  const productRoot = 'public/products/时光片/';
   studio.data.products = {
     gallery: [
       ['01_%E8%8D%AF%E7%9B%92%E5%85%AD%E8%A7%86%E5%9B%BE.png', '药盒六视图'],
