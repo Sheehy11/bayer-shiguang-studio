@@ -1,4 +1,4 @@
-/* Bayer Shiguang Visual Studio | generated 2026-08-27T09:45:36.329Z */
+/* Bayer Shiguang Visual Studio | generated 2026-08-28T02:21:24.363Z */
 (function bootstrapStudio(global) {
   'use strict';
   global.BayerStudio = global.BayerStudio || {
@@ -8197,17 +8197,19 @@
     const baseUrl = studio.services.sceneAnalysis.apiBaseUrl();
     if (!baseUrl) throw new Error('尚未配置生图服务端地址');
     const count = studio.utils.clamp(options.count || 1, 1, 5);
+    const requestBody = JSON.stringify({
+      userId: anonymousUserId(),
+      prompt: result.text,
+      count,
+      ratio: options.ratio || studio.state.prompt.ratio || '3:4',
+      quality: options.quality === 'high' ? 'high' : 'medium',
+      references: referencesFor(result)
+    });
+    JSON.parse(requestBody);
     const response = await fetch(`${baseUrl}/api/generate`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        userId: anonymousUserId(),
-        prompt: result.text,
-        count,
-        ratio: options.ratio || studio.state.prompt.ratio || '3:4',
-        quality: options.quality === 'high' ? 'high' : 'medium',
-        references: referencesFor(result)
-      })
+      headers: { 'Content-Type': 'application/json; charset=utf-8' },
+      body: new Blob([requestBody], { type: 'application/json; charset=utf-8' })
     });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(payload.error || `GPT 生图失败（${response.status}）`);
