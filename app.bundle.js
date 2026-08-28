@@ -1,4 +1,4 @@
-/* Bayer Shiguang Visual Studio | generated 2026-08-28T02:21:24.363Z */
+/* Bayer Shiguang Visual Studio | generated 2026-08-28T06:38:23.968Z */
 (function bootstrapStudio(global) {
   'use strict';
   global.BayerStudio = global.BayerStudio || {
@@ -7948,12 +7948,12 @@
   const productRoot = 'public/products/时光片/';
   studio.data.products = {
     gallery: [
-      ['01_%E8%8D%AF%E7%9B%92%E5%85%AD%E8%A7%86%E5%9B%BE.png', '药盒六视图'],
-      ['02_%E8%8D%AF%E6%9D%BF%E5%85%AD%E8%A7%86%E5%9B%BE.png', '药板六视图'],
-      ['03_%E5%8D%95%E9%A2%97%E8%8D%AF%E7%89%87%E5%85%AD%E8%A7%86%E5%9B%BE.png', '单颗药片六视图'],
-      ['04_%E5%8C%85%E8%A3%85%E7%9B%92_%E6%A0%87%E5%87%86%E6%AD%A3%E9%9D%A2.png', '包装盒正面'],
-      ['05_%E8%8D%AF%E6%9D%BF%E4%B8%8E%E8%8D%AF%E7%89%87_%E6%A0%A1%E8%89%B2%E6%AF%8D%E7%89%88.png', '药板与药片校色母版'],
-      ['06_%E5%8C%85%E8%A3%85%E7%9B%92%E8%8D%AF%E6%9D%BF%E8%8D%AF%E7%89%87_45%E5%BA%A6%E7%BB%84%E5%90%88.png', '包装盒、药板与药片 45° 组合']
+      ['01_药盒六视图.png', '药盒六视图'],
+      ['02_药板六视图.png', '药板六视图'],
+      ['03_单颗药片六视图.png', '单颗药片六视图'],
+      ['04_包装盒_标准正面.png', '包装盒正面'],
+      ['05_药板与药片_校色母版.png', '药板与药片校色母版'],
+      ['06_包装盒药板药片_45度组合.png', '包装盒、药板与药片 45° 组合']
     ].map(([file, label]) => ({ image: productRoot + file, label })),
     combos: ['包装盒＋药板', '包装盒', '药板', '药片'],
     angleFiles: [
@@ -7984,8 +7984,8 @@
       ['combo-angle-11.png', '横放底面朝前、低位俯拍', ['low'], '轻微俯拍', '右斜', '侧躺', '侧面', '正面＋底面'],
       ['combo-angle-12.png', '包装盒与药板正面朝上平放、轻微俯拍', ['slightTop'], '轻微俯拍', '正面', '正面朝上平放', '背面', '正面']
     ].map(([file, label, compatibleCameraTypes, cameraAngle, subjectOrientation, pose, supportFace, visibleFaces]) => ({ file, label, compatibleCameraTypes, cameraAngle, subjectOrientation, pose, supportFace, visibleFaces })),
-    blister: { file: 'ref-%E8%8D%AF%E6%9D%BF.png', label: '完整药板' },
-    tablet: { file: 'ref-%E8%8D%AF%E7%89%87.png', label: '单颗药片' },
+    blister: { file: 'ref-药板.png', label: '完整药板' },
+    tablet: { file: 'ref-药片.png', label: '单颗药片' },
     root: productRoot
   };
 
