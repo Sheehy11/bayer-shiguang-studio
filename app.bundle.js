@@ -1,4 +1,4 @@
-/* Bayer Shiguang Visual Studio | generated 2026-08-28T06:38:23.968Z */
+/* Bayer Shiguang Visual Studio | generated 2026-08-28T10:32:02.779Z */
 (function bootstrapStudio(global) {
   'use strict';
   global.BayerStudio = global.BayerStudio || {
@@ -7955,7 +7955,16 @@
       ['05_药板与药片_校色母版.png', '药板与药片校色母版'],
       ['06_包装盒药板药片_45度组合.png', '包装盒、药板与药片 45° 组合']
     ].map(([file, label]) => ({ image: productRoot + file, label })),
-    combos: ['包装盒＋药板', '包装盒', '药板', '药片'],
+    combos: ['包装盒＋药板', '包装盒', '药板', '药片细节'],
+    generationModes: [
+      { value: 'single', label: '单张图' },
+      { value: 'multi', label: '多张独立图' },
+      { value: 'set', label: '套图（默认4个镜头）' }
+    ],
+    presentations: ['静置', '手持'],
+    visualStyles: ['精致随手PO', '素人随手PO'],
+    tabletSupports: ['无容器（桌面静置）', '掌心承托', '指尖横向夹持', '指尖竖向夹持', '瓶盖', '勺', '杯／碗／盘', '托盘'],
+    blisterStates: ['完整药板', '正在服用（有空泡罩）'],
     angleFiles: [
       ['model-angle-01.png', '正面偏左约30°', ['slightTop', 'oblique'], '平视', '左斜', '直立', '底面', '正面＋右侧面'],
       ['model-angle-02.png', '正面偏右约30°', ['slightTop', 'oblique'], '平视', '右斜', '直立', '底面', '正面＋左侧面'],
@@ -7985,7 +7994,12 @@
       ['combo-angle-12.png', '包装盒与药板正面朝上平放、轻微俯拍', ['slightTop'], '轻微俯拍', '正面', '正面朝上平放', '背面', '正面']
     ].map(([file, label, compatibleCameraTypes, cameraAngle, subjectOrientation, pose, supportFace, visibleFaces]) => ({ file, label, compatibleCameraTypes, cameraAngle, subjectOrientation, pose, supportFace, visibleFaces })),
     blister: { file: 'ref-药板.png', label: '完整药板' },
+    usedBlister: { file: 'ref-药板-已服用.png', label: '正在服用的药板（空泡罩状态）' },
     tablet: { file: 'ref-药片.png', label: '单颗药片' },
+    tabletPalm: { file: 'ref-药片-掌心.png', label: '掌心承托药片' },
+    tabletHorizontal: { file: 'ref-药片-横向夹持.png', label: '药片横向夹持与厚度' },
+    tabletVertical: { file: 'ref-药片-竖向夹持.png', label: '药片竖向夹持与长度' },
+    proportionReference: { file: '06_包装盒药板药片_45度组合.png', label: '包装盒、药板与药片 45° 比例基准' },
     root: productRoot
   };
 
@@ -8186,11 +8200,14 @@
   }
 
   function referencesFor(result) {
-    return [
+    const references = [
       { role: 'scene', label: `场景参考 ${result.item.id}`, url: absoluteAssetUrl(result.item.image) },
       { role: 'product', label: `唯一产品参考 ${result.productReference.label}`, url: absoluteAssetUrl(result.productReference.image) },
+      { role: 'proportion', label: result.productReference.proportionReference.label, url: absoluteAssetUrl(result.productReference.proportionReference.image) },
+      ...(result.productReference.additionalReferences || []).map(reference => ({ role: reference.kind || 'support', label: reference.label, url: absoluteAssetUrl(reference.image) })),
       ...result.selectedProps.map(prop => ({ role: 'prop', label: `道具参考 ${prop.label}`, url: absoluteAssetUrl(prop.image) }))
     ];
+    return references.slice(0, 8);
   }
 
   async function generate(result, options = {}) {
@@ -8214,10 +8231,75 @@
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(payload.error || `GPT 生图失败（${response.status}）`);
     if (!Array.isArray(payload.images) || !payload.images.length) throw new Error('GPT 未返回图片');
-    return payload;
+    return { ...payload, request: { references: referencesFor(result), prompt: result.text, ratio: options.ratio || studio.state.prompt.ratio || '3:4', quality: options.quality === 'high' ? 'high' : 'medium' } };
   }
 
   studio.services.imageGeneration = { anonymousUserId, absoluteAssetUrl, referencesFor, generate };
+})(globalThis.BayerStudio);
+
+
+(function registerReviewHistoryService(studio) {
+  'use strict';
+
+  const localKey = 'bayer-review-history-pending-v1';
+  let memoryCache = { loadedAt: 0, guide: '' };
+
+  function apiUrl(path) {
+    const base = studio.services.sceneAnalysis.apiBaseUrl();
+    if (!base) throw new Error('尚未配置评审服务端地址');
+    return `${base}${path}`;
+  }
+
+  function pending() {
+    return studio.services.storage.read(localKey, []);
+  }
+
+  function rememberPending(record) {
+    const records = pending().filter(item => item.id !== record.id);
+    records.unshift({ ...record, syncState: 'pending' });
+    studio.services.storage.write(localKey, records.slice(0, 30));
+  }
+
+  function clearPending(id) {
+    studio.services.storage.write(localKey, pending().filter(item => item.id !== id));
+  }
+
+  async function save(record) {
+    rememberPending(record);
+    const response = await fetch(apiUrl('/api/reviews'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json; charset=utf-8' },
+      body: JSON.stringify({ ...record, userId: studio.services.imageGeneration.anonymousUserId() })
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(payload.error || `评审同步失败（${response.status}）`);
+    clearPending(record.id);
+    memoryCache.loadedAt = 0;
+    return payload.review;
+  }
+
+  async function list(limit = 60) {
+    const response = await fetch(apiUrl(`/api/reviews?limit=${Math.max(1, Math.min(100, limit))}`), { cache: 'no-store' });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(payload.error || `读取历史评审失败（${response.status}）`);
+    return [...(payload.reviews || []), ...pending().filter(item => !(payload.reviews || []).some(remote => remote.id === item.id))];
+  }
+
+  async function qualityMemory(options = {}) {
+    if (!options.force && Date.now() - memoryCache.loadedAt < 5 * 60 * 1000) return memoryCache.guide;
+    try {
+      const response = await fetch(apiUrl('/api/review-memory'), { cache: 'no-store' });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error || `读取质量记忆失败（${response.status}）`);
+      memoryCache = { loadedAt: Date.now(), guide: String(payload.guide || '') };
+      return memoryCache.guide;
+    } catch (error) {
+      memoryCache = { loadedAt: Date.now(), guide: '' };
+      return '';
+    }
+  }
+
+  studio.services.reviewHistory = { save, list, qualityMemory, pending };
 })(globalThis.BayerStudio);
 
 
@@ -8354,16 +8436,31 @@
     return chooseCatalogAngle(studio.data.products.comboAngleFiles, item, variation, variantIndex, 'box-blister', fingerprint);
   }
 
-  function productReference(item, variation, variantIndex, combo, fingerprint) {
+  function productReference(item, variation, variantIndex, combo, fingerprint, options = {}) {
     const products = studio.data.products;
-    if (combo === '包装盒＋药板') {
-      const angle = chooseComboAngle(item, variation, variantIndex, fingerprint);
-      return { image: products.root + angle.file, label: `包装盒＋药板 · ${angle.label}`, angle, kind: 'box-blister' };
+    const normalizedCombo = combo === '药片细节' ? '药片' : combo;
+    const additionalReferences = [];
+    if (options.blisterState === '正在服用（有空泡罩）' && ['包装盒＋药板', '药板'].includes(normalizedCombo)) {
+      additionalReferences.push({ image: products.root + products.usedBlister.file, label: products.usedBlister.label, kind: 'use-state' });
     }
-    if (combo === '药板') return { image: products.root + products.blister.file, label: products.blister.label, kind: 'blister' };
-    if (combo === '药片') return { image: products.root + products.tablet.file, label: products.tablet.label, kind: 'tablet' };
+    if (normalizedCombo === '药片') {
+      const supports = {
+        '掌心承托': products.tabletPalm,
+        '指尖横向夹持': products.tabletHorizontal,
+        '指尖竖向夹持': products.tabletVertical
+      };
+      const support = supports[options.tabletSupport];
+      if (support) additionalReferences.push({ image: products.root + support.file, label: support.label, kind: 'support' });
+    }
+    const proportionReference = { image: products.root + products.proportionReference.file, label: products.proportionReference.label, kind: 'proportion' };
+    if (normalizedCombo === '包装盒＋药板') {
+      const angle = chooseComboAngle(item, variation, variantIndex, fingerprint);
+      return { image: products.root + angle.file, label: `包装盒＋药板 · ${angle.label}`, angle, kind: 'box-blister', additionalReferences, proportionReference };
+    }
+    if (normalizedCombo === '药板') return { image: products.root + products.blister.file, label: products.blister.label, kind: 'blister', additionalReferences, proportionReference };
+    if (normalizedCombo === '药片') return { image: products.root + products.tablet.file, label: products.tablet.label, kind: 'tablet', additionalReferences, proportionReference };
     const angle = chooseAngle(item, variation, variantIndex, fingerprint);
-    return { image: products.root + angle.file, label: `包装盒 · ${angle.label}`, angle, kind: 'box' };
+    return { image: products.root + angle.file, label: `包装盒 · ${angle.label}`, angle, kind: 'box', additionalReferences, proportionReference };
   }
 
   studio.prompt.chooseAngle = chooseAngle;
@@ -8384,15 +8481,36 @@
     '包装盒＋药板': '产品参考图是唯一产品外观依据。完整还原图中包装盒的品牌、文字、盒型结构以及完整药板的结构、颜色、比例和二者相对关系；可见文字清晰，不出现错字、乱码、无关Logo或虚构结构。',
     '包装盒': '产品参考图是唯一产品外观依据。完整还原图中的品牌、文字、盒型结构、宽高厚比例和可见包装面；可见文字清晰，不出现错字、乱码、无关Logo或虚构包装面。',
     '药板': '产品参考图是唯一产品外观依据。完整还原图中的药板结构、泡罩数量、紫色材质、边缘轮廓和比例，不改变或补画未显示结构。',
-    '药片': '产品参考图是唯一产品外观依据。完整还原图中单颗药片的颜色、形状、厚度、边缘轮廓和比例，不改变或补画未显示结构。'
+    '药片': '产品参考图是唯一产品外观依据。完整还原图中单颗药片的颜色、形状、厚度、边缘轮廓和比例，不改变或补画未显示结构。',
+    '药片细节': '产品参考图是唯一产品外观依据。完整还原图中单颗药片的颜色、形状、厚度、边缘轮廓和比例，不改变或补画未显示结构。'
   };
 
   const comboSubjects = {
     '包装盒＋药板': '画面主体严格保持产品参考图中的一个包装盒与一板完整药板，二者各自完整、边界清楚且稳定置于同一硬质桌面。药板必须泡罩面朝上平放，整片薄板与桌面平行并形成连续贴近的接触阴影；禁止药板独立直立、斜立、倚靠包装盒或悬空。包装盒必须按参考图姿态以真实接触面落在桌面，接触边缘清楚且有贴近的自然接触阴影；禁止盒底留白、漂浮或仅靠远离盒体的投影制造接触感。不得增加任何未选择的产品形态。',
     '包装盒': '画面主体严格保持产品参考图中的一个包装盒。包装盒必须按参考图姿态以真实接触面落在硬质桌面，接触边缘清楚且有贴近的自然接触阴影；禁止盒底留白、漂浮、悬空或仅靠远离盒体的投影制造接触感。不得增加任何未选择的产品形态。',
     '药板': '画面主体严格保持产品参考图中的一板完整药板。药板必须泡罩面朝上完全平放在硬质桌面，整片薄板与桌面平行，边缘和底面形成连续贴近的接触阴影；禁止独立直立、斜立、倚靠其他物体或悬空。不得增加任何未选择的产品形态。',
-    '药片': '画面主体严格保持产品参考图中的单颗药片，并让药片底部真实接触桌面或合适容器，具有贴近且符合体积的接触阴影；禁止悬浮。不得增加任何未选择的产品形态。'
+    '药片': '画面主体严格保持产品参考图中的单颗药片，并让药片底部真实接触桌面或合适容器，具有贴近且符合体积的接触阴影；禁止悬浮。不得增加任何未选择的产品形态。',
+    '药片细节': '画面主体严格保持产品参考图中的单颗药片，并让药片底部真实接触桌面、手部或所选容器，具有贴近且符合体积的接触阴影；禁止悬浮。不得增加任何未选择的产品形态。'
   };
+
+  function useStateRule(combo, blisterState) {
+    if (!['包装盒＋药板', '药板'].includes(combo) || blisterState !== '正在服用（有空泡罩）') return '';
+    return '药板需要呈现真实服用中的状态：以“正在服用的药板（空泡罩状态）”参考图理解已取出药片后的透明空泡罩、压痕、薄膜反光和自然使用痕迹。不得把它理解为损坏、撕裂、脏污或变形；包装盒、药板尺寸和品牌身份仍以唯一产品母版与45°比例基准为准。';
+  }
+
+  function tabletSupportRule(tabletSupport) {
+    const rules = {
+      '无容器（桌面静置）': '药片细节不使用任何容器或手部，单颗药片稳定静置于干净硬质桌面并保留真实接触阴影。',
+      '掌心承托': '药片细节采用掌心承托，以掌心参考图锁定单颗药片相对手掌的真实尺寸；手掌自然展开，药片不能被手纹吞没或异常放大。',
+      '指尖横向夹持': '药片细节采用指尖横向夹持，以横向夹持参考图锁定药片厚度、圆角和受力关系；仅出现自然手指，不增加药片。',
+      '指尖竖向夹持': '药片细节采用指尖竖向夹持，以竖向夹持参考图锁定药片长度、圆角和受力关系；仅出现自然手指，不增加药片。',
+      '瓶盖': '药片细节放在一个真实比例的干净瓶盖中；瓶盖仅作生活化容器，不出现药瓶或额外品牌。',
+      '勺': '药片细节放在一只真实比例的生活用勺中，药片与勺面接触自然，不悬浮、不增加药片。',
+      '杯／碗／盘': '药片细节放在用户所选的杯、碗或盘类容器中，容器尺寸与药片比例真实，画面只出现一颗药片。',
+      '托盘': '药片细节放在用户所选的小型托盘中，药片与托盘比例真实，不得生成医疗器械感或额外药品。'
+    };
+    return rules[tabletSupport] || '';
+  }
 
   function subjectRule(combo, referenceHasHand) {
     if (combo === '包装盒＋药板' && referenceHasHand) return '画面主体严格保持产品参考图中的一个包装盒与一板完整药板。包装盒必须由参考图中的手指或手掌自然、真实地持握支撑，或按参考图姿态真实接触硬质桌面；禁止盒底留白、漂浮、脱离手部悬空或虚构桌面接触。药板必须泡罩面朝上或朝向镜头，并由可见手指、手掌真实托住；如果没有手部直接支撑，则必须完全平放在硬质桌面，形成连续贴近的接触阴影。禁止药板无支撑独立直立、漂浮在包装盒旁边、悬空或仅依靠虚构阴影。不得增加任何未选择的产品形态。';
@@ -8401,7 +8519,7 @@
     return comboSubjects[combo];
   }
 
-  studio.prompt.rules = { cameraTone, environment, reverseEnvironment, noArtwork, bed, identity, comboSubjects, subjectRule };
+  studio.prompt.rules = { cameraTone, environment, reverseEnvironment, noArtwork, bed, identity, comboSubjects, subjectRule, useStateRule, tabletSupportRule };
 })(globalThis.BayerStudio);
 
 
@@ -8501,15 +8619,16 @@
       '包装盒＋药板': '只允许一个包装盒和一板完整药板',
       '包装盒': '只允许一个包装盒；禁止药板、散装药片、胶囊、药瓶及任何盛放它们的碟子、托盘或专用容器',
       '药板': '只允许一板完整药板；禁止包装盒、散装药片、胶囊、药瓶及任何盛放它们的专用容器',
-      '药片': '只允许一颗药片；禁止包装盒、药板、药瓶和额外药片'
+      '药片': '只允许一颗药片；禁止包装盒、药板、药瓶和额外药片',
+      '药片细节': '只允许一颗药片；禁止包装盒、药板、药瓶和额外药片；只有用户明确选择的承托容器可以出现'
     };
     return `产品形态防串线规则（优先级高于场景指纹）：${allowed[combo]}。场景参考图里原产品及其附属物仅用于识别原主体位置与占比，必须从新画面中彻底移除；不得把参考图中的药片、胶囊、药板、原品牌包装、瓶盖、药碟或专用托盘当作环境道具保留。若Gemini场景描述与本规则冲突，忽略冲突内容。`;
   }
 
   function generatePrompt(input) {
-    const { item, variantIndex, combo, ratio, selectedProps = [], sceneFingerprint = null } = input;
+    const { item, variantIndex, combo, ratio, selectedProps = [], sceneFingerprint = null, presentation = item.format, visualStyle = item.style, tabletSupport = '', blisterState = '完整药板', setContext = null, qualityMemory = '' } = input;
     const variation = studio.prompt.planVariation(item, variantIndex);
-    const productReference = studio.prompt.productReference(item, variation, variantIndex, combo, sceneFingerprint);
+    const productReference = studio.prompt.productReference(item, variation, variantIndex, combo, sceneFingerprint, { tabletSupport, blisterState });
     const hasHand = referenceHasHand(item);
     const reverseReference = shouldReverseReference(item);
     const fingerprintGuide = sceneFingerprint ? studio.services.sceneAnalysis?.promptGuide(sceneFingerprint) : '';
@@ -8517,15 +8636,20 @@
       '先在内部核对第一张场景参考图及其场景指纹，不输出分析过程，再进行同风格、同结构尺度但非复制品的倒推式重建。整体视觉关系约70%保留、约30%变化；禁止把“不得复制”理解为重新设计场景，也禁止只在原图上替换产品。',
       fingerprintGuide ? `Gemini场景指纹（优先执行）：${fingerprintGuide}` : '场景指纹暂缺：直接从第一张场景参考图识别并锁定机位、裁切、空间分区、主体占比、物件类别与数量级、光线、景深和画面疏密。',
       reverseReference ? studio.prompt.rules.reverseEnvironment : studio.prompt.rules.environment,
+      `本镜头展示方式为“${presentation || '静置'}”，视觉风格为“${visualStyle || '精致随手PO'}”。展示方式控制产品与手部/承托面的物理关系，视觉风格只控制生活化程度、构图精致度和拍摄质感，二者不得混淆。`,
+      setContext ? `套图一致性锁：本镜头属于同一套图的第${setContext.index + 1}/${setContext.total}张。所有镜头必须共用同一居家环境、背景材质、主光方向、5000K白平衡、色彩体系与摄影质感；允许根据本镜头展示内容轻微改变拍摄距离、产品角度和局部构图，但不得更换房间、桌面、主要家具或光线时段。${setContext.index === 0 ? '本张作为封面，机位、裁切和主体区域优先遵循场景参考图。' : '本张作为内页，在环境锁定前提下执行手动选择的产品组合和展示方式。'}` : '',
       productFormFirewall(combo),
       studio.prompt.rules.subjectRule(combo, hasHand),
       handRule(item, variation),
       orientationRule(productReference, hasHand),
       studio.prompt.rules.identity[combo],
+      studio.prompt.rules.useStateRule(combo, blisterState),
+      combo === '药片细节' ? studio.prompt.rules.tabletSupportRule(tabletSupport) : '',
       studio.prompt.rules.bed,
       selectedPropRule(selectedProps),
       studio.prompt.rules.noArtwork,
       studio.prompt.rules.cameraTone,
+      qualityMemory ? `历史评审质量记忆（只作为纠错偏好，不得覆盖产品身份和本轮人工选择）：${qualityMemory}` : '',
       `同批方案保持统一摄影风格、参考图的主要空间结构与所选产品真实角度；差异集中在具体款式、局部细节和小范围位置，不得改变场景类型、相机方向、主体所在区域或画面疏密。图片比例为${ratio}。`
     ].filter(Boolean);
     const prompt = sections.join('\n');
@@ -8534,6 +8658,11 @@
       prompt,
       variation,
       productReference,
+      presentation,
+      visualStyle,
+      tabletSupport,
+      blisterState,
+      setContext,
       validation: studio.prompt.validatePrompt(prompt, context)
     };
   }
@@ -8832,10 +8961,11 @@
     const products = studio.data.products;
     const angles = products.angleFiles.map(angle => ({ image: products.root + angle.file, ...angle }));
     const comboAngles = products.comboAngleFiles.map(angle => ({ image: products.root + angle.file, ...angle }));
-    const generationReferences = [products.blister, products.tablet].map(reference => ({ image: products.root + reference.file, label: reference.label }));
+    const generationReferences = [products.blister, products.usedBlister, products.tablet, products.tabletPalm, products.tabletHorizontal, products.tabletVertical]
+      .map(reference => ({ image: products.root + reference.file, label: reference.label }));
     const editor = item => `<div class="model-angle-editor"><label>角度描述<input data-model-label value="${studio.utils.escapeHtml(item.label)}"></label><label>拍摄机位<select data-model-camera>${studio.data.classification.cameraAngles.map(value => `<option${value === item.cameraAngle ? ' selected' : ''}>${value}</option>`).join('')}</select></label><label>产品朝向<select data-model-orientation>${studio.data.classification.subjectOrientations.map(value => `<option${value === item.subjectOrientation ? ' selected' : ''}>${value}</option>`).join('')}</select></label><label>真实摆放姿态<select data-model-pose>${poseOptions.map(value => `<option${value === item.pose ? ' selected' : ''}>${value}</option>`).join('')}</select></label><label>承托面<select data-model-support>${supportFaceOptions.map(value => `<option${value === item.supportFace ? ' selected' : ''}>${value}</option>`).join('')}</select></label><label>可见包装面<input data-model-faces value="${studio.utils.escapeHtml(item.visibleFaces || '')}" placeholder="例如：正面＋右侧面"></label><div class="actions"><button class="action" data-model-cancel>取消</button><button class="action primary" data-model-save="${item.file}">保存分类</button></div></div>`;
     const cards = items => items.map(product => `<article class="product-card" data-model-file="${product.file || ''}"><img src="${product.image}" alt="${studio.utils.escapeHtml(product.label)}"><span>${studio.utils.escapeHtml(product.label)}</span>${product.cameraAngle ? `<div class="tags modeling-tags"><span class="tag">机位:${product.cameraAngle}</span><span class="tag">朝向:${product.subjectOrientation}</span><span class="tag">姿态:${product.pose}</span><span class="tag">承托:${product.supportFace}</span><span class="tag">可见:${studio.utils.escapeHtml(product.visibleFaces || '未标')}</span></div><div class="model-card-actions"><button class="action" data-model-edit="${product.file}">编辑分类</button></div>${editingFile === product.file ? editor(product) : ''}` : ''}</article>`).join('');
-    container.innerHTML = `<header class="page-head"><div class="eyebrow">PRODUCT MODELING</div><h1>产品建模</h1><p class="subtitle">产品实拍角度可人工编辑；修改后立即影响唯一产品参考图自动匹配。</p></header><div class="toolbar"><div class="axis"><b>产品</b><button class="pill active">时光片</button></div><div class="actions"><button class="action primary" id="exportModelAngles">导出建模分类</button><button class="action" id="importModelAngles">导入建模分类</button><input id="modelAngleFile" type="file" accept=".json,application/json" hidden></div></div><h3 class="section-title">标准母版 · 6 张</h3><section class="product-grid">${cards(products.gallery)}</section><h3 class="section-title">药板与药片单图参考 · 2 张</h3><section class="product-grid">${cards(generationReferences)}</section><h3 class="section-title">包装盒生成角度 · 12 张</h3><section class="product-grid">${cards(angles)}</section><h3 class="section-title">包装盒＋药板真实组合角度 · 12 张</h3><section class="product-grid">${cards(comboAngles)}</section>`;
+    container.innerHTML = `<header class="page-head"><div class="eyebrow">PRODUCT MODELING</div><h1>产品建模</h1><p class="subtitle">产品身份、真实使用状态、手部承托比例和实拍角度共同约束生图；45°组合图在每次生成前自动读取。</p></header><div class="toolbar"><div class="axis"><b>产品</b><button class="pill active">时光片</button></div><div class="actions"><button class="action primary" id="exportModelAngles">导出建模分类</button><button class="action" id="importModelAngles">导入建模分类</button><input id="modelAngleFile" type="file" accept=".json,application/json" hidden></div></div><h3 class="section-title">标准母版与比例基准 · 6 张</h3><section class="product-grid">${cards(products.gallery)}</section><h3 class="section-title">药板、药片与使用姿态参考 · 6 张</h3><section class="product-grid">${cards(generationReferences)}</section><h3 class="section-title">包装盒生成角度 · 12 张</h3><section class="product-grid">${cards(angles)}</section><h3 class="section-title">包装盒＋药板真实组合角度 · 12 张</h3><section class="product-grid">${cards(comboAngles)}</section>`;
     container.querySelectorAll('[data-model-edit]').forEach(button => button.onclick = () => { editingFile = button.dataset.modelEdit; render(container); });
     container.querySelectorAll('[data-model-cancel]').forEach(button => button.onclick = () => { editingFile = null; render(container); });
     container.querySelectorAll('[data-model-save]').forEach(button => button.onclick = () => {
@@ -8869,62 +8999,84 @@
 
 (function registerPromptWorkspace(studio) {
   'use strict';
-  const promptEditKey = 'bayer-prompt-text-edits-v4';
+
+  const promptEditKey = 'bayer-prompt-text-edits-v5';
   const filterAxes = [
-    ['style', '质感', ['全部', '精致随手PO', '素人随手PO']],
-    ['scene', '风格', ['全部', '生活感', '摆拍感', '背景']],
-    ['format', '内容', ['全部', '手持', '静置', '细节展示']],
+    ['style', '视觉风格', ['全部', '精致随手PO', '素人随手PO']],
+    ['scene', '场景类型', ['全部', '生活感', '摆拍感', '背景']],
+    ['format', '展示方式', ['全部', '手持', '静置', '细节展示']],
     ['cameraAngle', '拍摄机位', ['全部', '平视', '轻微俯拍', '高位俯拍', '低机位仰拍']],
     ['subjectOrientation', '主体朝向', ['全部', '正面', '左斜', '右斜', '侧面', '不限']]
   ];
 
+  function newShot(index) {
+    return {
+      id: `shot-${index + 1}`,
+      combo: '',
+      presentation: '静置',
+      visualStyle: '精致随手PO',
+      tabletSupport: '无容器（桌面静置）',
+      blisterState: '正在服用（有空泡罩）'
+    };
+  }
+
   function initialize() {
     studio.state.prompt = {
+      mode: 'single',
       selectedSceneIds: new Set(),
       selectedPropIds: new Set(),
-      filters: { style: '全部', scene: '全部', format: '全部', cameraAngle: '全部', subjectOrientation: '全部', detailTags: new Set(), productForms: new Set() },
+      filters: { style: '全部', scene: '全部', format: '全部', cameraAngle: '全部', subjectOrientation: '全部', detailTag: '全部', productForm: '全部' },
       propCategory: '全部',
       selectorTab: '场景参考',
       selectorOpen: false,
       scenePage: 0,
       propPage: 0,
       combo: '包装盒＋药板',
-      count: 1,
+      presentation: '静置',
+      visualStyle: '精致随手PO',
+      tabletSupport: '无容器（桌面静置）',
+      blisterState: '正在服用（有空泡罩）',
+      count: 2,
       ratio: '3:4',
+      setShots: Array.from({ length: 4 }, (_, index) => newShot(index)),
       analysisRunning: false,
       analysisMessage: '',
+      qualityMemory: '',
       results: [],
       savedTexts: {
-        ...studio.services.storage.read('bayer-prompt-text-edits-v1', {}),
-        ...studio.services.storage.read('bayer-prompt-text-edits-v2', {}),
-        ...studio.services.storage.read('bayer-prompt-text-edits-v3', {}),
+        ...studio.services.storage.read('bayer-prompt-text-edits-v4', {}),
         ...studio.services.storage.read(promptEditKey, {})
       }
     };
   }
 
+  function clearGeneratedImages() {
+    if (!studio.state.generation) return;
+    studio.state.generation.images = [];
+    studio.state.generation.resultIndex = 0;
+    studio.state.generation.message = '';
+  }
+
+  function invalidateResults() {
+    studio.state.prompt.results = [];
+    clearGeneratedImages();
+  }
+
   function filteredMaterials() {
     const state = studio.state.prompt;
-    const singlesMatch = item => ['style', 'scene', 'format', 'cameraAngle', 'subjectOrientation'].every(key => state.filters[key] === '全部' || item[key] === state.filters[key]);
-    const includesEvery = (values, selected) => [...selected].every(value => (values || []).includes(value));
-    return studio.state.materials.filter(item => !item.deleted && singlesMatch(item) &&
-      (!state.filters.detailTags.size || (item.format === '细节展示' && includesEvery(item.detailTags, state.filters.detailTags))) &&
-      includesEvery(item.productForms, state.filters.productForms));
-  }
-
-  function multiFilterAxis(key, label, values, selected) {
-    return `<div class="axis" data-prompt-multi-filter="${key}"><b>${label}</b><button class="pill ${selected.size ? '' : 'active'}" data-value="全部">全部</button>${values.map(value => `<button class="pill ${selected.has(value) ? 'active' : ''}" data-value="${value}">${value}</button>`).join('')}</div>`;
-  }
-
-  function materialTags(item) {
-    return [item.style, item.scene, item.format, ...(item.format === '细节展示' ? item.detailTags : []), ...item.productForms.map(value => `产品:${value}`), `机位:${item.cameraAngle || '平视'}`, `朝向:${item.subjectOrientation || '不限'}`]
-      .map(value => `<span class="tag">${studio.utils.escapeHtml(value)}</span>`).join('');
+    return studio.state.materials.filter(item => {
+      if (item.deleted) return false;
+      const axesMatch = ['style', 'scene', 'format', 'cameraAngle', 'subjectOrientation']
+        .every(key => state.filters[key] === '全部' || item[key] === state.filters[key]);
+      const detailMatch = state.filters.detailTag === '全部' || (item.detailTags || []).includes(state.filters.detailTag);
+      const productMatch = state.filters.productForm === '全部' || (item.productForms || []).includes(state.filters.productForm);
+      return axesMatch && detailMatch && productMatch;
+    });
   }
 
   function filteredProps() {
-    const state = studio.state.prompt;
     const props = studio.state.props || studio.data.props;
-    return state.propCategory === '全部' ? props : props.filter(prop => prop.category === state.propCategory);
+    return studio.state.prompt.propCategory === '全部' ? props : props.filter(prop => prop.category === studio.state.prompt.propCategory);
   }
 
   function savePromptText(key, value) {
@@ -8932,16 +9084,31 @@
     studio.services.storage.write(promptEditKey, studio.state.prompt.savedTexts);
   }
 
-  function resultKey(itemId, state, variantIndex, selectedProps) {
+  function configurationKey(config) {
+    return [config.combo, config.presentation, config.visualStyle, config.tabletSupport, config.blisterState].join('|');
+  }
+
+  function resultKey(itemId, state, variantIndex, selectedProps, config) {
     const propSignature = selectedProps.map(prop => prop.id).sort().join(',') || 'no-props';
-    return `original-scene-v4|${itemId}|${state.combo}|${state.ratio}|${propSignature}|${variantIndex}`;
+    return `creation-v5|${itemId}|${state.mode}|${configurationKey(config)}|${state.ratio}|${propSignature}|${variantIndex}`;
+  }
+
+  function configurations() {
+    const state = studio.state.prompt;
+    const base = {
+      combo: state.combo,
+      presentation: state.presentation,
+      visualStyle: state.visualStyle,
+      tabletSupport: state.tabletSupport,
+      blisterState: state.blisterState
+    };
+    if (state.mode === 'single') return [{ ...base, variantIndex: 0 }];
+    if (state.mode === 'multi') return Array.from({ length: state.count }, (_, variantIndex) => ({ ...base, variantIndex }));
+    return state.setShots.map((shot, index) => ({ ...shot, variantIndex: index, setContext: { index, total: state.setShots.length } }));
   }
 
   function validationFor(text, item, combo) {
-    return studio.prompt.validatePrompt(text, {
-      combo,
-      referenceHasHand: studio.prompt.referenceHasHand(item)
-    });
+    return studio.prompt.validatePrompt(text, { combo, referenceHasHand: studio.prompt.referenceHasHand(item) });
   }
 
   function validationMarkup(validation) {
@@ -8967,60 +9134,121 @@
 
   async function buildResults() {
     const state = studio.state.prompt;
-    if (!state.selectedSceneIds.size) {
+    const sceneId = [...state.selectedSceneIds][0];
+    if (!sceneId) {
       state.analysisRunning = false;
-      alert('请先选择至少一张场景参考素材');
+      alert('请先选择一张场景参考素材');
       return;
     }
+    if (state.mode === 'set' && state.setShots.some(shot => !shot.combo)) {
+      state.analysisRunning = false;
+      alert('请为套图的4个镜头分别选择产品组合');
+      return;
+    }
+    clearGeneratedImages();
+    const item = studio.state.materials.find(material => material.id === sceneId);
     const selectedProps = (studio.state.props || studio.data.props).filter(prop => state.selectedPropIds.has(prop.id));
-    const selectedScenes = studio.state.materials.filter(material => state.selectedSceneIds.has(material.id));
     state.analysisRunning = true;
-    state.analysisMessage = '正在用 Gemini 倒推场景结构…';
-    const failures = [];
-    for (const item of selectedScenes) {
-      try {
-        await studio.services.sceneAnalysis.analyze(item);
-      } catch (error) {
-        failures.push(`${item.id}：${error.message}`);
-      }
+    state.analysisMessage = '正在读取历史质量记忆，并用 Gemini 倒推场景结构…';
+    let analysisFailure = '';
+    try {
+      await studio.services.sceneAnalysis.analyze(item);
+    } catch (error) {
+      analysisFailure = error.message;
     }
-    const results = [];
-    for (const item of selectedScenes) {
-      const sceneFingerprint = studio.services.sceneAnalysis.get(item.id);
-      for (let variantIndex = 0; variantIndex < state.count; variantIndex += 1) {
-        const generated = studio.prompt.generatePrompt({ item, variantIndex, combo: state.combo, ratio: state.ratio, selectedProps, sceneFingerprint });
-        const key = resultKey(item.id, state, variantIndex, selectedProps);
-        results.push({ key, item, variantIndex, selectedProps, sceneFingerprint, ...generated, text: state.savedTexts[key] ?? generated.prompt });
-      }
-    }
+    state.qualityMemory = await studio.services.reviewHistory.qualityMemory();
+    const sceneFingerprint = studio.services.sceneAnalysis.get(item.id);
+    const results = configurations().map(config => {
+      const generatedItem = {
+        ...item,
+        style: config.visualStyle,
+        format: config.presentation === '手持' ? '手持' : (config.combo === '药片细节' ? '细节展示' : '静置'),
+        shot: config.presentation
+      };
+      const generated = studio.prompt.generatePrompt({
+        item: generatedItem,
+        variantIndex: config.variantIndex,
+        combo: config.combo,
+        ratio: state.ratio,
+        selectedProps,
+        sceneFingerprint,
+        presentation: config.presentation,
+        visualStyle: config.visualStyle,
+        tabletSupport: config.tabletSupport,
+        blisterState: config.blisterState,
+        setContext: config.setContext || null,
+        qualityMemory: state.qualityMemory
+      });
+      const key = resultKey(item.id, state, config.variantIndex, selectedProps, config);
+      return {
+        key,
+        item: generatedItem,
+        sourceItem: item,
+        variantIndex: config.variantIndex,
+        selectedProps,
+        sceneFingerprint,
+        mode: state.mode,
+        config,
+        ...generated,
+        text: state.savedTexts[key] ?? generated.prompt
+      };
+    });
     state.results = results;
     state.analysisRunning = false;
-    state.analysisMessage = failures.length
-      ? `Gemini 未完成 ${failures.length} 张场景分析，已用70/30规则生成。${failures.join('；')}`
-      : `Gemini 场景倒推完成：${selectedScenes.length} 张；已缓存，后续不重复分析。`;
+    state.analysisMessage = analysisFailure
+      ? `Gemini 未完成场景分析，已使用70/30基础规则。${analysisFailure}`
+      : `场景指纹已锁定；${state.qualityMemory ? '历史质量记忆已应用' : '当前暂无已评分质量记忆'}；已生成 ${results.length} 个镜头提示词。`;
+  }
+
+  function selectOptions(values, selected) {
+    return values.map(value => `<option value="${studio.utils.escapeHtml(value)}"${value === selected ? ' selected' : ''}>${studio.utils.escapeHtml(value)}</option>`).join('');
+  }
+
+  function conditionalControls(config, prefix) {
+    const blister = ['包装盒＋药板', '药板'].includes(config.combo)
+      ? `<label>药板状态<select data-config-field="blisterState" data-config-prefix="${prefix}">${selectOptions(studio.data.products.blisterStates, config.blisterState)}</select></label>` : '';
+    const tablet = config.combo === '药片细节'
+      ? `<label>药片承托／容器<select data-config-field="tabletSupport" data-config-prefix="${prefix}">${selectOptions(studio.data.products.tabletSupports, config.tabletSupport)}</select></label>` : '';
+    return `${blister}${tablet}`;
+  }
+
+  function commonConfigMarkup(config, prefix) {
+    const comboOptions = prefix.startsWith('shot:') ? ['', ...studio.data.products.combos] : studio.data.products.combos;
+    return `<label>产品组合<select data-config-field="combo" data-config-prefix="${prefix}">${comboOptions.map(value => `<option value="${studio.utils.escapeHtml(value)}"${value === config.combo ? ' selected' : ''}>${studio.utils.escapeHtml(value || '请选择产品组合')}</option>`).join('')}</select></label>
+      <label>展示方式<select data-config-field="presentation" data-config-prefix="${prefix}">${selectOptions(studio.data.products.presentations, config.presentation)}</select></label>
+      <label>视觉风格<select data-config-field="visualStyle" data-config-prefix="${prefix}">${selectOptions(studio.data.products.visualStyles, config.visualStyle)}</select></label>
+      ${conditionalControls(config, prefix)}`;
+  }
+
+  function modeSettingsMarkup(state) {
+    const base = { combo: state.combo, presentation: state.presentation, visualStyle: state.visualStyle, tabletSupport: state.tabletSupport, blisterState: state.blisterState };
+    if (state.mode === 'set') {
+      return `<div class="set-intro"><b>套图环境锁</b><span>默认4个镜头槽位；每个镜头的产品组合、展示方式和视觉风格均手动选择。封面优先遵循参考图，内页只允许轻微角度变化。</span></div>
+        <div class="shot-grid">${state.setShots.map((shot, index) => `<article class="shot-card"><div class="shot-number">镜头 ${index + 1}${index === 0 ? ' · 封面' : ' · 内页'}</div><div class="shot-fields">${commonConfigMarkup(shot, `shot:${index}`)}</div></article>`).join('')}</div>`;
+    }
+    return `<div class="creation-fields">${commonConfigMarkup(base, 'base')}${state.mode === 'multi' ? `<label>独立图片数量<input id="promptCount" type="number" min="2" max="5" value="${state.count}"></label>` : ''}</div>`;
   }
 
   function renderResults() {
     const state = studio.state.prompt;
     if (!state.results.length) return '';
-    return `<section class="global-edit"><h3>提示词编辑</h3><textarea id="globalPromptEdit" placeholder="填写需要追加到本批所有提示词的要求。"></textarea><div class="actions"><button class="action" id="applyGlobalEdit">应用到全部</button><button class="action" id="copyAllPrompts">复制全部提示词</button></div></section><section class="prompt-results">${state.results.map(result => {
-      const references = [
-        { image: result.item.image, label: `场景参考 · ${result.item.id}` },
-        { image: result.productReference.image, label: `唯一产品参考 · ${result.productReference.label}` },
-        ...result.selectedProps.map(prop => ({ image: prop.image, label: `道具参考 · ${prop.label}` }))
-      ];
-      const validation = validationMarkup(validationFor(result.text, result.item, state.combo));
-      const angleWarning = result.productReference.angle && (result.productReference.angle.cameraMatch === 'nearest' || result.productReference.angle.poseMatch === 'nearest')
-        ? `<div class="validation-error">${studio.utils.escapeHtml(result.productReference.angle.reason)}</div>` : '';
-      const fingerprintState = result.sceneFingerprint ? 'Gemini场景指纹已应用' : '未取得Gemini场景指纹，当前使用70/30基础规则';
-      return `<article class="prompt-result" data-result="${result.key}"><div class="references">${references.map(reference => `<figure><img src="${studio.utils.escapeHtml(reference.image)}" alt="${studio.utils.escapeHtml(reference.label)}"><figcaption>${studio.utils.escapeHtml(reference.label)}</figcaption></figure>`).join('')}</div><div><div class="result-meta">${result.item.id} · 差异方案 ${result.variantIndex + 1} / ${state.count}</div><div class="count">场景机位 ${result.item.cameraAngle || '平视'} · 主体朝向 ${result.item.subjectOrientation || '不限'} · ${result.productReference.angle ? `产品机位 ${result.productReference.angle.cameraAngle} · 姿态 ${result.productReference.angle.pose} · 承托 ${result.productReference.angle.supportFace}` : result.productReference.label}</div><div class="scene-analysis-state ${result.sceneFingerprint ? 'ready' : 'fallback'}">${fingerprintState}</div>${angleWarning}${validation}<textarea rows="8">${studio.utils.escapeHtml(result.text)}</textarea><div class="actions"><button class="action" data-expand-prompt>展开全文</button><button class="action" data-copy>复制此条</button><button class="action" data-restore>恢复自动版本</button></div></div></article>`;
-    }).join('')}</section>`;
+    return `<section class="global-edit"><h3>提示词编辑</h3><textarea id="globalPromptEdit" placeholder="填写需要追加到本批所有提示词的要求。"></textarea><div class="actions"><button class="action" id="applyGlobalEdit">应用到全部</button><button class="action" id="copyAllPrompts">复制全部提示词</button></div></section>
+      <section class="prompt-results">${state.results.map((result, index) => {
+        const extraProductReferences = result.productReference.additionalReferences || [];
+        const references = [
+          { image: result.sourceItem.image, label: `场景参考 · ${result.sourceItem.id}` },
+          { image: result.productReference.image, label: `唯一产品参考 · ${result.productReference.label}` },
+          { image: result.productReference.proportionReference.image, label: result.productReference.proportionReference.label },
+          ...extraProductReferences,
+          ...result.selectedProps.map(prop => ({ image: prop.image, label: `道具参考 · ${prop.label}` }))
+        ];
+        const validation = validationMarkup(validationFor(result.text, result.item, result.config.combo));
+        const title = result.mode === 'set' ? `套图镜头 ${index + 1}` : `方案 ${index + 1}`;
+        return `<article class="prompt-result" data-result="${result.key}"><div class="references">${references.map(reference => `<figure><img src="${encodeURI(reference.image)}" alt="${studio.utils.escapeHtml(reference.label)}"><figcaption>${studio.utils.escapeHtml(reference.label)}</figcaption></figure>`).join('')}</div><div><div class="result-meta">${title} · ${studio.utils.escapeHtml(result.config.combo)} · ${studio.utils.escapeHtml(result.config.presentation)} · ${studio.utils.escapeHtml(result.config.visualStyle)}</div><div class="scene-analysis-state ${result.sceneFingerprint ? 'ready' : 'fallback'}">${result.sceneFingerprint ? 'Gemini场景指纹已应用' : '使用70/30基础规则'}</div>${validation}<textarea rows="8">${studio.utils.escapeHtml(result.text)}</textarea><div class="actions"><button class="action" data-expand-prompt>展开全文</button><button class="action" data-copy>复制此条</button><button class="action" data-restore>恢复自动版本</button></div></div></article>`;
+      }).join('')}</section>`;
   }
 
-  function render(container) {
-    const state = studio.state.prompt;
-    const materials = filteredMaterials();
-    const props = filteredProps();
+  function selectorMarkup(state, materials, props) {
     const pageSize = 24;
     const scenePages = Math.max(1, Math.ceil(materials.length / pageSize));
     const propPages = Math.max(1, Math.ceil(props.length / pageSize));
@@ -9028,164 +9256,285 @@
     state.propPage = Math.min(state.propPage, propPages - 1);
     const shownMaterials = materials.slice(state.scenePage * pageSize, (state.scenePage + 1) * pageSize);
     const shownProps = props.slice(state.propPage * pageSize, (state.propPage + 1) * pageSize);
-    const selectedScenes = studio.state.materials.filter(item => state.selectedSceneIds.has(item.id));
+    const selectedScene = studio.state.materials.find(item => state.selectedSceneIds.has(item.id));
     const selectedProps = (studio.state.props || studio.data.props).filter(item => state.selectedPropIds.has(item.id));
-    const thumbs = [...selectedScenes, ...selectedProps].map(item => `<img src="${encodeURI(item.image)}" title="${studio.utils.escapeHtml(item.title || item.label)}" alt="${studio.utils.escapeHtml(item.id)}">`).join('');
+    const thumbs = [selectedScene, ...selectedProps].filter(Boolean).map(item => `<img src="${encodeURI(item.image)}" title="${studio.utils.escapeHtml(item.title || item.label)}" alt="${studio.utils.escapeHtml(item.id)}">`).join('');
     const isScene = state.selectorTab === '场景参考';
-    container.innerHTML = `
-      <header class="page-head"><div class="eyebrow">BATCH PROMPT WORKSPACE</div><h1>提示词</h1><p class="subtitle">以场景参考图为蓝本，匹配单张产品实拍图，仅按需加入所选道具。</p></header>
-      <section class="prompt-settings"><label>产品组合<select id="promptCombo">${studio.data.products.combos.map(value => `<option${value === state.combo ? ' selected' : ''}>${value}</option>`).join('')}</select></label><label>每次生成数量<input id="promptCount" type="number" min="1" max="5" value="${state.count}"></label><label>图片比例<select id="promptRatio">${['1:1','3:4','4:3','4:5','9:16','16:9'].map(value => `<option${value === state.ratio ? ' selected' : ''}>${value}</option>`).join('')}</select></label><div class="similarity-scale"><b>场景相似尺度</b><span>约70%保留结构 · 约30%改变具体细节</span></div></section>
-      <section class="compact-selector"><div class="selector-head"><h3 class="section-title">参考选择 · 场景 ${state.selectedSceneIds.size} · 道具 ${state.selectedPropIds.size}</h3><button class="action" id="toggleReferenceSelector">${state.selectorOpen ? '收起选择器' : '展开选择器'}</button></div><div class="selected-thumb-strip">${thumbs || '<span class="count">尚未选择场景或道具</span>'}</div>${state.selectorOpen ? `<div class="selector-tabs">${['场景参考', '道具'].map(value => `<button class="pill ${state.selectorTab === value ? 'active' : ''}" data-selector-tab="${value}">${value}</button>`).join('')}</div>${isScene ? `${filterAxes.map(([key,label,values]) => `<div class="axis" data-prompt-filter="${key}"><b>${label}</b>${values.map(value => `<button class="pill ${state.filters[key] === value ? 'active' : ''}" data-value="${value}">${value}</button>`).join('')}</div>`).join('')}${state.filters.format === '细节展示' ? multiFilterAxis('detailTags', '细节展示', studio.data.classification.detailTags, state.filters.detailTags) : ''}${multiFilterAxis('productForms', '产品组合', studio.data.classification.productForms, state.filters.productForms)}<div class="compact-reference-grid">${shownMaterials.map(item => `<article class="card selectable ${state.selectedSceneIds.has(item.id) ? 'selected' : ''}" data-scene="${item.id}"><span class="selection-mark">✓</span><img src="${encodeURI(item.image)}" alt="${studio.utils.escapeHtml(item.title)}" loading="lazy"><div class="card-body"><span class="code">${item.id}</span><h2>${studio.utils.escapeHtml(item.title)}</h2><div class="tags">${materialTags(item)}</div></div></article>`).join('')}</div><div class="pagination"><button class="action" data-page="scene-prev" ${state.scenePage === 0 ? 'disabled' : ''}>上一页</button><span>${state.scenePage + 1} / ${scenePages} · ${materials.length} 张</span><button class="action" data-page="scene-next" ${state.scenePage + 1 >= scenePages ? 'disabled' : ''}>下一页</button></div>` : `<div class="axis">${['全部', ...studio.data.classification.propCategories].map(value => `<button class="pill ${state.propCategory === value ? 'active' : ''}" data-prop-category="${value}">${value}</button>`).join('')}</div><div class="compact-reference-grid">${shownProps.map(prop => `<article class="card selectable ${state.selectedPropIds.has(prop.id) ? 'selected' : ''}" data-prop="${prop.id}"><span class="selection-mark">✓</span><img src="${encodeURI(prop.image)}" alt="${studio.utils.escapeHtml(prop.label)}" loading="lazy"><div class="card-body"><h2>${studio.utils.escapeHtml(prop.label)}</h2></div></article>`).join('')}</div><div class="pagination"><button class="action" data-page="prop-prev" ${state.propPage === 0 ? 'disabled' : ''}>上一页</button><span>${state.propPage + 1} / ${propPages} · ${props.length} 张</span><button class="action" data-page="prop-next" ${state.propPage + 1 >= propPages ? 'disabled' : ''}>下一页</button></div>`}` : ''}</section>
-      <div class="toolbar"><span class="count">${state.analysisMessage || '生成提示词时会自动调用 Gemini 倒推未分析的场景；已分析场景直接读取缓存。'}</span><div class="actions"><button class="action" id="clearPromptWorkspace" ${state.analysisRunning ? 'disabled' : ''}>一键清空</button><button class="action primary" id="buildPrompts" ${state.analysisRunning ? 'disabled' : ''}>${state.analysisRunning ? '正在分析…' : 'Gemini倒推并生成提示词'}</button></div></div>${renderResults()}`;
+    const filterSelects = filterAxes.map(([key, label, values]) => `<label>${label}<select data-prompt-filter="${key}">${selectOptions(values, state.filters[key])}</select></label>`).join('');
+    return `<section class="compact-selector"><div class="selector-head"><h3 class="section-title">参考选择 · 场景 ${state.selectedSceneIds.size}/1 · 道具 ${state.selectedPropIds.size}</h3><button class="action" id="toggleReferenceSelector">${state.selectorOpen ? '收起选择器' : '展开选择器'}</button></div><div class="selected-thumb-strip">${thumbs || '<span class="count">尚未选择场景或道具</span>'}</div>${state.selectorOpen ? `<div class="selector-tabs">${['场景参考', '道具'].map(value => `<button class="pill ${state.selectorTab === value ? 'active' : ''}" data-selector-tab="${value}">${value}</button>`).join('')}</div>${isScene ? `<div class="selector-filter-grid">${filterSelects}${state.filters.format === '细节展示' ? `<label>细节类型<select data-prompt-filter="detailTag">${selectOptions(['全部', ...studio.data.classification.detailTags], state.filters.detailTag)}</select></label>` : ''}<label>产品形态<select data-prompt-filter="productForm">${selectOptions(['全部', ...studio.data.classification.productForms], state.filters.productForm)}</select></label></div><div class="compact-reference-grid">${shownMaterials.map(item => `<article class="card selectable ${state.selectedSceneIds.has(item.id) ? 'selected' : ''}" data-scene="${item.id}"><span class="selection-mark">✓</span><img src="${encodeURI(item.image)}" alt="${studio.utils.escapeHtml(item.title)}" loading="lazy"><div class="card-body"><span class="code">${item.id}</span><h2>${studio.utils.escapeHtml(item.title)}</h2></div></article>`).join('')}</div><div class="pagination"><button class="action" data-page="scene-prev" ${state.scenePage === 0 ? 'disabled' : ''}>上一页</button><span>${state.scenePage + 1} / ${scenePages} · ${materials.length} 张</span><button class="action" data-page="scene-next" ${state.scenePage + 1 >= scenePages ? 'disabled' : ''}>下一页</button></div>` : `<div class="selector-filter-grid"><label>道具区域<select id="propCategorySelect">${selectOptions(['全部', ...studio.data.classification.propCategories], state.propCategory)}</select></label></div><div class="compact-reference-grid">${shownProps.map(prop => `<article class="card selectable ${state.selectedPropIds.has(prop.id) ? 'selected' : ''}" data-prop="${prop.id}"><span class="selection-mark">✓</span><img src="${encodeURI(prop.image)}" alt="${studio.utils.escapeHtml(prop.label)}" loading="lazy"><div class="card-body"><h2>${studio.utils.escapeHtml(prop.label)}</h2></div></article>`).join('')}</div><div class="pagination"><button class="action" data-page="prop-prev" ${state.propPage === 0 ? 'disabled' : ''}>上一页</button><span>${state.propPage + 1} / ${propPages} · ${props.length} 张</span><button class="action" data-page="prop-next" ${state.propPage + 1 >= propPages ? 'disabled' : ''}>下一页</button></div>`}` : ''}</section>`;
+  }
 
-    container.querySelector('#promptCombo').onchange = event => { state.combo = event.target.value; state.results = []; render(container); };
-    container.querySelector('#promptCount').onchange = event => { state.count = studio.utils.clamp(event.target.value || 1, 1, 5); state.results = []; render(container); };
-    container.querySelector('#promptRatio').onchange = event => { state.ratio = event.target.value; state.results = []; render(container); };
+  function bindConfigurationControls(container, state) {
+    container.querySelectorAll('[data-config-field]').forEach(control => control.onchange = event => {
+      const prefix = control.dataset.configPrefix;
+      const target = prefix === 'base' ? state : state.setShots[Number(prefix.split(':')[1])];
+      target[control.dataset.configField] = event.target.value;
+      if (control.dataset.configField === 'combo' && event.target.value === '药片细节' && !target.tabletSupport) target.tabletSupport = '无容器（桌面静置）';
+      invalidateResults();
+      render(container);
+    });
+  }
+
+  function render(container) {
+    const state = studio.state.prompt;
+    const materials = filteredMaterials();
+    const props = filteredProps();
+    container.innerHTML = `<header class="page-head"><div class="eyebrow">CREATION WORKSPACE</div><h1>提示词与图片生成</h1><p class="subtitle">在同一个面板完成场景选择、提示词确认、生图和人工评审。重新生成提示词会自动清空上一轮未归档图片。</p></header>
+      <section class="creation-mode"><b>先选择生成类型</b><div class="mode-buttons">${studio.data.products.generationModes.map(mode => `<button class="mode-card ${state.mode === mode.value ? 'active' : ''}" data-generation-mode="${mode.value}">${mode.label}</button>`).join('')}</div></section>
+      <section class="prompt-settings creation-settings">${modeSettingsMarkup(state)}<div class="creation-common"><label>图片比例<select id="promptRatio">${selectOptions(['1:1','3:4','4:3','4:5','9:16','16:9'], state.ratio)}</select></label><div class="similarity-scale"><b>场景相似尺度</b><span>约70%保留结构 · 约30%改变细节</span></div></div></section>
+      ${selectorMarkup(state, materials, props)}
+      <div class="toolbar"><span class="count">${state.analysisMessage || '生成提示词时读取场景指纹与历史评审质量记忆；不会调用付费生图。'}</span><div class="actions"><button class="action" id="clearPromptWorkspace" ${state.analysisRunning ? 'disabled' : ''}>一键清空</button><button class="action primary" id="buildPrompts" ${state.analysisRunning ? 'disabled' : ''}>${state.analysisRunning ? '正在分析…' : '生成本轮提示词'}</button></div></div>
+      ${renderResults()}<div id="generationMount"></div>`;
+
+    bindConfigurationControls(container, state);
+    container.querySelectorAll('[data-generation-mode]').forEach(button => button.onclick = () => { state.mode = button.dataset.generationMode; invalidateResults(); render(container); });
+    const countInput = container.querySelector('#promptCount');
+    if (countInput) countInput.onchange = event => { state.count = studio.utils.clamp(event.target.value || 2, 2, 5); invalidateResults(); render(container); };
+    container.querySelector('#promptRatio').onchange = event => { state.ratio = event.target.value; invalidateResults(); render(container); };
     container.querySelector('#toggleReferenceSelector').onclick = () => { state.selectorOpen = !state.selectorOpen; render(container); };
     container.querySelectorAll('[data-selector-tab]').forEach(button => button.onclick = () => { state.selectorTab = button.dataset.selectorTab; render(container); });
     container.querySelectorAll('[data-page]').forEach(button => button.onclick = () => { const [kind, direction] = button.dataset.page.split('-'); state[kind + 'Page'] += direction === 'next' ? 1 : -1; render(container); });
-    container.querySelectorAll('[data-prompt-filter] .pill').forEach(button => button.onclick = () => {
-      state.filters[button.parentElement.dataset.promptFilter] = button.dataset.value;
-      state.scenePage = 0;
-      if (button.parentElement.dataset.promptFilter === 'format' && button.dataset.value !== '细节展示') state.filters.detailTags.clear();
-      render(container);
-    });
-    container.querySelectorAll('[data-prompt-multi-filter] .pill').forEach(button => button.onclick = () => {
-      const set = state.filters[button.parentElement.dataset.promptMultiFilter];
-      if (button.dataset.value === '全部') set.clear();
-      else set.has(button.dataset.value) ? set.delete(button.dataset.value) : set.add(button.dataset.value);
-      state.scenePage = 0;
-      render(container);
-    });
-    container.querySelectorAll('[data-scene]').forEach(card => card.onclick = () => { state.selectedSceneIds.has(card.dataset.scene) ? state.selectedSceneIds.delete(card.dataset.scene) : state.selectedSceneIds.add(card.dataset.scene); render(container); });
-    container.querySelectorAll('[data-prop-category]').forEach(button => button.onclick = () => { state.propCategory = button.dataset.propCategory; state.propPage = 0; render(container); });
-    container.querySelectorAll('[data-prop]').forEach(card => card.onclick = () => { state.selectedPropIds.has(card.dataset.prop) ? state.selectedPropIds.delete(card.dataset.prop) : state.selectedPropIds.add(card.dataset.prop); render(container); });
-    container.querySelector('#clearPromptWorkspace').onclick = () => { state.selectedSceneIds.clear(); state.selectedPropIds.clear(); state.results = []; state.filters = { style: '全部', scene: '全部', format: '全部', cameraAngle: '全部', subjectOrientation: '全部', detailTags: new Set(), productForms: new Set() }; state.propCategory = '全部'; state.scenePage = 0; state.propPage = 0; render(container); };
-    container.querySelector('#buildPrompts').onclick = async () => {
-      if (!state.selectedSceneIds.size) return alert('请先选择至少一张场景参考素材');
-      state.analysisRunning = true;
-      render(container);
-      await buildResults();
-      render(container);
-    };
+    container.querySelectorAll('[data-prompt-filter]').forEach(select => select.onchange = () => { state.filters[select.dataset.promptFilter] = select.value; state.scenePage = 0; if (select.dataset.promptFilter === 'format' && select.value !== '细节展示') state.filters.detailTag = '全部'; render(container); });
+    container.querySelectorAll('[data-scene]').forEach(card => card.onclick = () => { const already = state.selectedSceneIds.has(card.dataset.scene); state.selectedSceneIds.clear(); if (!already) state.selectedSceneIds.add(card.dataset.scene); invalidateResults(); render(container); });
+    const propCategory = container.querySelector('#propCategorySelect');
+    if (propCategory) propCategory.onchange = () => { state.propCategory = propCategory.value; state.propPage = 0; render(container); };
+    container.querySelectorAll('[data-prop]').forEach(card => card.onclick = () => { state.selectedPropIds.has(card.dataset.prop) ? state.selectedPropIds.delete(card.dataset.prop) : state.selectedPropIds.add(card.dataset.prop); invalidateResults(); render(container); });
+    container.querySelector('#clearPromptWorkspace').onclick = () => { state.selectedSceneIds.clear(); state.selectedPropIds.clear(); state.results = []; state.analysisMessage = ''; clearGeneratedImages(); render(container); };
+    container.querySelector('#buildPrompts').onclick = async () => { if (!state.selectedSceneIds.size) return alert('请先选择一张场景参考素材'); state.analysisRunning = true; clearGeneratedImages(); render(container); await buildResults(); render(container); };
 
     container.querySelectorAll('[data-result]').forEach(card => {
       const result = state.results.find(candidate => candidate.key === card.dataset.result);
       const area = card.querySelector('textarea');
       card.querySelector('[data-expand-prompt]').onclick = event => { const expanded = area.classList.toggle('expanded'); event.currentTarget.textContent = expanded ? '收起全文' : '展开全文'; };
-      area.oninput = () => {
-        result.text = area.value;
-        savePromptText(result.key, result.text);
-        const previous = card.querySelector('.validation-ok, .validation-error');
-        if (previous) previous.outerHTML = validationMarkup(validationFor(result.text, result.item, state.combo));
-      };
+      area.oninput = () => { result.text = area.value; savePromptText(result.key, result.text); clearGeneratedImages(); };
       card.querySelector('[data-copy]').onclick = () => copyText(area.value);
-      card.querySelector('[data-restore]').onclick = () => {
-        result.text = result.prompt;
-        savePromptText(result.key, result.prompt);
-        area.value = result.prompt;
-        const previous = card.querySelector('.validation-ok, .validation-error');
-        if (previous) previous.outerHTML = validationMarkup(validationFor(result.text, result.item, state.combo));
-      };
+      card.querySelector('[data-restore]').onclick = () => { result.text = result.prompt; savePromptText(result.key, result.prompt); clearGeneratedImages(); render(container); };
     });
     const applyGlobal = container.querySelector('#applyGlobalEdit');
-    if (applyGlobal) applyGlobal.onclick = () => {
-      const extra = container.querySelector('#globalPromptEdit').value.trim();
-      if (!extra) return;
-      state.results.forEach(result => { result.text = `${result.text}\n${extra}`; savePromptText(result.key, result.text); });
-      render(container);
-    };
+    if (applyGlobal) applyGlobal.onclick = () => { const extra = container.querySelector('#globalPromptEdit').value.trim(); if (!extra) return; state.results.forEach(result => { result.text = `${result.text}\n${extra}`; savePromptText(result.key, result.text); }); clearGeneratedImages(); render(container); };
     const copyAll = container.querySelector('#copyAllPrompts');
     if (copyAll) copyAll.onclick = () => copyText(state.results.map((result, index) => `# ${index + 1} ${result.item.id}\n${result.text}`).join('\n\n'));
+    studio.features.generation.render(container.querySelector('#generationMount'), { embedded: true });
   }
 
-  studio.features.promptWorkspace = { initialize, render };
+  studio.features.promptWorkspace = { initialize, render, invalidateResults };
 })(globalThis.BayerStudio);
 
 
 (function registerGenerationFeature(studio) {
   'use strict';
 
+  const issueTags = ['产品还原不准', '产品比例不准', '构图偏差', '风格不一致', '手部异常', '文字错误', '容器不真实', '其他'];
+
   function initialize() {
     studio.state.generation = {
       resultIndex: 0,
-      count: 1,
       quality: 'medium',
       running: false,
+      reviewing: false,
       message: '',
       health: null,
-      images: []
+      images: [],
+      reviewDrafts: {}
     };
   }
 
   function healthMarkup(health) {
     if (!health) return '<span class="generation-status neutral">尚未检测服务端</span>';
     if (!health.ok) return `<span class="generation-status error">${studio.utils.escapeHtml(health.error || '服务端不可用')}</span>`;
-    const gemini = health.geminiConfigured ? 'Gemini 已配置' : 'Gemini 未配置';
-    const openai = health.openaiConfigured ? 'GPT Image 已配置' : 'GPT Image 未配置';
-    const quota = health.quotaConfigured ? '额度存储已配置' : '额度存储未配置';
+    const statuses = [
+      health.geminiConfigured ? 'Gemini 已配置' : 'Gemini 未配置',
+      health.openaiConfigured ? 'GPT Image 已配置' : 'GPT Image 未配置',
+      health.quotaConfigured ? '额度存储已配置' : '额度存储未配置',
+      health.reviewConfigured ? '历史评审已配置' : '历史评审未配置'
+    ];
     const ready = health.geminiConfigured && health.openaiConfigured && health.quotaConfigured;
-    return `<span class="generation-status ${ready ? 'ready' : 'warning'}">${gemini} · ${openai} · ${quota}</span>`;
+    return `<span class="generation-status ${ready ? (health.reviewConfigured ? 'ready' : 'warning') : 'warning'}">${statuses.join(' · ')}</span>`;
+  }
+
+  function allReferences(result) {
+    return [
+      { image: result.sourceItem?.image || result.item.image, label: `场景 · ${result.sourceItem?.id || result.item.id}` },
+      { image: result.productReference.image, label: `唯一产品 · ${result.productReference.label}` },
+      { image: result.productReference.proportionReference.image, label: result.productReference.proportionReference.label },
+      ...(result.productReference.additionalReferences || []),
+      ...result.selectedProps.map(prop => ({ image: prop.image, label: `道具 · ${prop.label}` }))
+    ];
+  }
+
+  function imageDataUrl(image) {
+    return `data:${image.mimeType || 'image/jpeg'};base64,${image.b64Json}`;
+  }
+
+  function reviewMarkup(image) {
+    const draft = studio.state.generation.reviewDrafts[image.id] || { rating: image.review?.rating || 0, tags: image.review?.tags || [], note: image.review?.note || '' };
+    if (image.review?.synced) return `<div class="review-complete"><b>已评分 ${image.review.rating}/5</b><span>${studio.utils.escapeHtml((image.review.tags || []).join('、') || '无问题标签')}</span></div>`;
+    return `<div class="review-box" data-review-box="${image.id}"><b>历史记录评审</b><div class="rating-row" aria-label="1到5分">${[1,2,3,4,5].map(value => `<button class="rating-button ${draft.rating === value ? 'active' : ''}" data-rating="${value}" type="button">${value}</button>`).join('')}<span>分</span></div><div class="review-tags">${issueTags.map(tag => `<label><input type="checkbox" value="${tag}"${draft.tags.includes(tag) ? ' checked' : ''}>${tag}</label>`).join('')}</div><textarea rows="2" placeholder="可选：说明哪里好或哪里需要改进">${studio.utils.escapeHtml(draft.note)}</textarea><button class="action primary" data-submit-review="${image.id}" ${studio.state.generation.reviewing ? 'disabled' : ''}>保存评分并同步质量记忆</button></div>`;
   }
 
   function imageMarkup(image, index) {
-    const mimeType = image.mimeType || 'image/jpeg';
-    const src = `data:${mimeType};base64,${image.b64Json}`;
-    return `<figure class="generated-card"><img src="${src}" alt="生成结果 ${index + 1}"><figcaption><a class="action" href="${src}" download="bayer-shiguang-${Date.now()}-${index + 1}.${mimeType.includes('png') ? 'png' : 'jpg'}">下载原图</a></figcaption></figure>`;
+    const src = imageDataUrl(image);
+    const extension = (image.mimeType || '').includes('png') ? 'png' : 'jpg';
+    return `<figure class="generated-card" data-generated-id="${image.id}"><img src="${src}" alt="生成结果 ${index + 1}"><figcaption><div><b>${studio.utils.escapeHtml(image.label || `生成结果 ${index + 1}`)}</b><span>${studio.utils.escapeHtml(image.config?.combo || '')} · ${studio.utils.escapeHtml(image.config?.presentation || '')}</span></div><a class="action" href="${src}" download="bayer-shiguang-${image.id}.${extension}">下载原图</a></figcaption>${reviewMarkup(image)}</figure>`;
   }
 
-  function render(container) {
+  function render(container, options = {}) {
     const state = studio.state.generation;
     const results = studio.state.prompt.results || [];
     state.resultIndex = Math.min(state.resultIndex, Math.max(0, results.length - 1));
     const selected = results[state.resultIndex];
-    const options = results.map((result, index) => `<option value="${index}"${index === state.resultIndex ? ' selected' : ''}>${studio.utils.escapeHtml(result.item.id)} · 方案 ${result.variantIndex + 1}</option>`).join('');
-    const references = selected ? [
-      { image: selected.item.image, label: `场景 · ${selected.item.id}` },
-      { image: selected.productReference.image, label: `唯一产品 · ${selected.productReference.label}` },
-      ...selected.selectedProps.map(prop => ({ image: prop.image, label: `道具 · ${prop.label}` }))
-    ] : [];
+    const optionsMarkup = results.map((result, index) => `<option value="${index}"${index === state.resultIndex ? ' selected' : ''}>${result.mode === 'set' ? `套图镜头 ${index + 1}` : `方案 ${index + 1}`} · ${studio.utils.escapeHtml(result.config.combo)}</option>`).join('');
+    const references = selected ? allReferences(selected) : [];
+    const title = options.embedded ? '<div class="section-kicker">下一步 · 确认提示词后生图</div>' : '<header class="page-head"><div class="eyebrow">IMAGE GENERATION</div><h1>图片生成</h1></header>';
+    const batchLabel = results.length > 1 ? `按顺序生成全部 ${results.length} 个镜头` : '开始生成图片';
 
-    container.innerHTML = `<header class="page-head"><div class="eyebrow">IMAGE GENERATION</div><h1>图片生成</h1><p class="subtitle">使用 GPT Image 2，根据已确认的场景指纹、唯一产品角度图和所选道具直接生成。</p></header>
-      <section class="generation-panel">
-        <div class="generation-health"><div>${healthMarkup(state.health)}</div><button class="action" id="checkGenerationHealth" ${state.running ? 'disabled' : ''}>检测接口</button></div>
-        ${selected ? `<div class="generation-controls"><label>提示词方案<select id="generationResult">${options}</select></label><label>生成张数<input id="generationCount" type="number" min="1" max="5" value="${state.count}"></label><label>质量<select id="generationQuality"><option value="medium"${state.quality === 'medium' ? ' selected' : ''}>测试 medium</option><option value="high"${state.quality === 'high' ? ' selected' : ''}>成片 high</option></select></label></div>
-          <div class="generation-references">${references.map(reference => `<figure><img src="${encodeURI(reference.image)}" alt="${studio.utils.escapeHtml(reference.label)}"><figcaption>${studio.utils.escapeHtml(reference.label)}</figcaption></figure>`).join('')}</div>
-          <label class="generation-prompt"><b>本次生图提示词</b><textarea id="generationPrompt" rows="10">${studio.utils.escapeHtml(selected.text)}</textarea></label>
-          <div class="generation-submit"><span>${studio.utils.escapeHtml(state.message || '每位用户每天最多30张；全站每天最多100张；单次1～5张。')}</span><button class="action primary" id="startGeneration" ${state.running ? 'disabled' : ''}>${state.running ? 'GPT 正在生成…' : '开始生成图片'}</button></div>`
-          : '<div class="generation-empty"><h2>还没有可生成的提示词</h2><p>请先进入“提示词”，选择场景和产品组合，完成 Gemini 倒推并生成提示词。</p></div>'}
-      </section>${state.images.length ? `<section class="generation-results"><h2>生成结果</h2><div class="generated-grid">${state.images.map(imageMarkup).join('')}</div></section>` : ''}`;
+    container.innerHTML = `${title}<section class="generation-panel">
+      <div class="generation-health"><div>${healthMarkup(state.health)}</div><button class="action" id="checkGenerationHealth" ${state.running ? 'disabled' : ''}>检测接口</button></div>
+      ${selected ? `<div class="generation-controls"><label>预览提示词<select id="generationResult">${optionsMarkup}</select></label><label>质量<select id="generationQuality"><option value="medium"${state.quality === 'medium' ? ' selected' : ''}>测试 medium</option><option value="high"${state.quality === 'high' ? ' selected' : ''}>成片 high</option></select></label></div>
+        <div class="generation-references">${references.map(reference => `<figure><img src="${encodeURI(reference.image)}" alt="${studio.utils.escapeHtml(reference.label)}"><figcaption>${studio.utils.escapeHtml(reference.label)}</figcaption></figure>`).join('')}</div>
+        <label class="generation-prompt"><b>当前镜头生图提示词</b><textarea id="generationPrompt" rows="10">${studio.utils.escapeHtml(selected.text)}</textarea></label>
+        <div class="generation-submit"><span>${studio.utils.escapeHtml(state.message || (results.length > 1 ? '将逐张生成；单张失败不会重复扣除已成功镜头。' : '生成前会自动读取45°产品比例基准。'))}</span><button class="action primary" id="startGeneration" ${state.running ? 'disabled' : ''}>${state.running ? 'GPT 正在生成…' : batchLabel}</button></div>`
+        : '<div class="generation-empty"><h2>请先生成并确认提示词</h2><p>提示词与生图已合并在当前面板；生成新提示词时上一轮未归档图片会自动清空。</p></div>'}
+      </section>${state.images.length ? `<section class="generation-results"><div class="history-heading"><div><h2>本轮生成结果</h2><p>请逐张评分；提交后写入共享历史和质量记忆。</p></div></div><div class="generated-grid">${state.images.map(imageMarkup).join('')}</div></section>` : ''}`;
 
     container.querySelector('#checkGenerationHealth').onclick = async () => {
       state.message = '正在检测服务端配置…';
       state.health = await studio.services.sceneAnalysis.health();
       state.message = state.health.ok ? '接口检测完成。' : (state.health.error || '接口检测失败。');
-      render(container);
+      render(container, options);
     };
     if (!selected) return;
-    container.querySelector('#generationResult').onchange = event => { state.resultIndex = Number(event.target.value); state.images = []; state.message = ''; render(container); };
-    container.querySelector('#generationCount').onchange = event => { state.count = studio.utils.clamp(event.target.value || 1, 1, 5); render(container); };
-    container.querySelector('#generationQuality').onchange = event => { state.quality = event.target.value; render(container); };
-    container.querySelector('#generationPrompt').oninput = event => { selected.text = event.target.value; };
+    container.querySelector('#generationResult').onchange = event => { state.resultIndex = Number(event.target.value); state.message = ''; render(container, options); };
+    container.querySelector('#generationQuality').onchange = event => { state.quality = event.target.value; render(container, options); };
+    container.querySelector('#generationPrompt').oninput = event => { selected.text = event.target.value; state.images = []; };
     container.querySelector('#startGeneration').onclick = async () => {
       state.running = true;
       state.images = [];
-      state.message = `正在提交 ${state.count} 张 ${state.quality} 图片，请不要关闭页面…`;
-      render(container);
-      try {
-        const payload = await studio.services.imageGeneration.generate(selected, { count: state.count, quality: state.quality, ratio: studio.state.prompt.ratio });
-        state.images = payload.images;
-        state.message = `生成完成：${payload.images.length} 张；个人今日已使用 ${payload.usage?.userDaily ?? '-'} / 30 张。`;
-      } catch (error) {
-        state.message = `生成失败：${error.message}`;
-      } finally {
-        state.running = false;
-        render(container);
+      state.message = `正在按顺序提交 ${results.length} 个镜头，请不要关闭页面…`;
+      render(container, options);
+      let completed = 0;
+      const failures = [];
+      for (let index = 0; index < results.length; index += 1) {
+        const result = results[index];
+        try {
+          const payload = await studio.services.imageGeneration.generate(result, { count: 1, quality: state.quality, ratio: studio.state.prompt.ratio });
+          const generated = payload.images.map((image, imageIndex) => ({
+            ...image,
+            id: globalThis.crypto?.randomUUID?.() || `image-${Date.now()}-${index}-${imageIndex}`,
+            label: result.mode === 'set' ? `套图镜头 ${index + 1}` : `方案 ${index + 1}`,
+            resultKey: result.key,
+            prompt: result.text,
+            config: result.config,
+            mode: result.mode,
+            sceneId: result.sourceItem?.id || result.item.id,
+            references: payload.request?.references || [],
+            model: payload.model || state.health?.openaiModel || 'gpt-image-2',
+            quality: state.quality,
+            createdAt: new Date().toISOString()
+          }));
+          state.images.push(...generated);
+          completed += generated.length;
+        } catch (error) {
+          failures.push(`镜头${index + 1}：${error.message}`);
+        }
       }
+      state.running = false;
+      state.message = failures.length ? `已完成 ${completed} 张；${failures.join('；')}` : `生成完成：${completed} 张。请逐张进行1–5分评审。`;
+      render(container, options);
     };
+
+    container.querySelectorAll('[data-review-box]').forEach(box => {
+      const image = state.images.find(candidate => candidate.id === box.dataset.reviewBox);
+      const draft = state.reviewDrafts[image.id] || { rating: 0, tags: [], note: '' };
+      state.reviewDrafts[image.id] = draft;
+      box.querySelectorAll('[data-rating]').forEach(button => button.onclick = () => { draft.rating = Number(button.dataset.rating); render(container, options); });
+      box.querySelectorAll('.review-tags input').forEach(input => input.onchange = () => { draft.tags = [...box.querySelectorAll('.review-tags input:checked')].map(item => item.value); });
+      box.querySelector('textarea').oninput = event => { draft.note = event.target.value; };
+    });
+    container.querySelectorAll('[data-submit-review]').forEach(button => button.onclick = async () => {
+      const image = state.images.find(candidate => candidate.id === button.dataset.submitReview);
+      const draft = state.reviewDrafts[image.id] || {};
+      if (!draft.rating) return alert('请先选择1到5分');
+      state.reviewing = true;
+      button.disabled = true;
+      try {
+        await studio.services.reviewHistory.save({
+          id: image.id,
+          rating: draft.rating,
+          tags: draft.tags || [],
+          note: draft.note || '',
+          prompt: image.prompt,
+          combo: image.config?.combo || '',
+          presentation: image.config?.presentation || '',
+          visualStyle: image.config?.visualStyle || '',
+          tabletSupport: image.config?.tabletSupport || '',
+          blisterState: image.config?.blisterState || '',
+          mode: image.mode,
+          sceneId: image.sceneId,
+          model: image.model,
+          quality: image.quality,
+          references: image.references,
+          createdAt: image.createdAt,
+          imageDataUrl: imageDataUrl(image)
+        });
+        image.review = { ...draft, synced: true };
+        state.message = '评分已写入共享历史；下一轮提示词会读取更新后的质量记忆。';
+      } catch (error) {
+        state.message = `评分暂未同步：${error.message}。记录已保存在当前浏览器，服务恢复后可继续同步。`;
+      } finally {
+        state.reviewing = false;
+        render(container, options);
+      }
+    });
   }
 
   studio.features.generation = { initialize, render };
+})(globalThis.BayerStudio);
+
+
+(function registerHistoryFeature(studio) {
+  'use strict';
+
+  function initialize() {
+    studio.state.history = { loading: false, loaded: false, attempted: false, error: '', reviews: [] };
+  }
+
+  function reviewImage(review) {
+    if (review.imageUrl) return review.imageUrl;
+    if (review.imageDataUrl) return review.imageDataUrl;
+    return '';
+  }
+
+  async function load(container) {
+    const state = studio.state.history;
+    state.loading = true;
+    state.error = '';
+    render(container);
+    try {
+      state.reviews = await studio.services.reviewHistory.list(80);
+      state.loaded = true;
+    } catch (error) {
+      state.error = error.message;
+      state.reviews = studio.services.reviewHistory.pending();
+    } finally {
+      state.loading = false;
+      state.attempted = true;
+      render(container);
+    }
+  }
+
+  function render(container) {
+    const state = studio.state.history;
+    const average = state.reviews.length ? (state.reviews.reduce((sum, review) => sum + Number(review.rating || 0), 0) / state.reviews.length).toFixed(1) : '-';
+    container.innerHTML = `<header class="page-head"><div class="eyebrow">HISTORY REVIEW</div><h1>历史记录评审</h1><p class="subtitle">每张图片的评分、问题标签、提示词和参考配置跨设备共享，并汇总为下一轮质量记忆。</p></header>
+      <div class="history-summary"><div><b>${state.reviews.length}</b><span>已评审图片</span></div><div><b>${average}</b><span>平均分 / 5</span></div><button class="action" id="reloadHistory" ${state.loading ? 'disabled' : ''}>${state.loading ? '读取中…' : '刷新历史'}</button></div>
+      ${state.error ? `<div class="validation-error">${studio.utils.escapeHtml(state.error)}</div>` : ''}
+      ${state.reviews.length ? `<section class="history-grid">${state.reviews.map(review => `<article class="history-card">${reviewImage(review) ? `<img src="${studio.utils.escapeHtml(reviewImage(review))}" alt="历史生成图片" loading="lazy">` : '<div class="history-image-missing">图片等待同步</div>'}<div class="history-card-body"><div class="history-score">${review.rating}/5</div><b>${studio.utils.escapeHtml(review.combo || '未分类')} · ${studio.utils.escapeHtml(review.presentation || '')}</b><span>${studio.utils.escapeHtml(review.visualStyle || '')} · ${studio.utils.escapeHtml(review.sceneId || '')}</span><div class="tags">${(review.tags || []).map(tag => `<span class="tag">${studio.utils.escapeHtml(tag)}</span>`).join('')}</div>${review.note ? `<p>${studio.utils.escapeHtml(review.note)}</p>` : ''}<details><summary>查看提示词</summary><p>${studio.utils.escapeHtml(review.prompt || '')}</p></details></div></article>`).join('')}</section>` : `<div class="empty">${state.loading ? '正在读取共享历史…' : '还没有已评分图片。生成图片后，请在创作面板逐张打分。'}</div>`}`;
+    container.querySelector('#reloadHistory').onclick = () => load(container);
+    if (!state.attempted && !state.loading) load(container);
+  }
+
+  studio.features.history = { initialize, render };
 })(globalThis.BayerStudio);
 
 
@@ -9194,13 +9543,14 @@
   const views = [
     ['library', '01', '素材库'],
     ['modeling', '02', '产品建模'],
-    ['promptWorkspace', '03', '提示词'],
-    ['generation', '04', '图片生成']
+    ['promptWorkspace', '03', '创作与生图'],
+    ['history', '04', '历史评审']
   ];
   studio.features.library.initialize();
   studio.features.modeling.initialize();
   studio.features.promptWorkspace.initialize();
   studio.features.generation.initialize();
+  studio.features.history.initialize();
   studio.state.currentView = 'library';
 
   const app = document.querySelector('#app');
