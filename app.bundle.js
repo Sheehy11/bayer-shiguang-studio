@@ -1,4 +1,4 @@
-/* Bayer Shiguang Visual Studio | generated 2026-08-28T10:32:02.779Z */
+/* Bayer Shiguang Visual Studio | generated build */
 (function bootstrapStudio(global) {
   'use strict';
   global.BayerStudio = global.BayerStudio || {
@@ -8061,6 +8061,11 @@
     return configured.replace(/\/$/, '');
   }
 
+  function reviewApiBaseUrl() {
+    if (['127.0.0.1', 'localhost'].includes(location.hostname)) return location.origin;
+    return apiBaseUrl();
+  }
+
   function publicBaseUrl() {
     return document.querySelector('meta[name="bayer-public-base"]')?.content?.trim().replace(/\/$/, '') || '';
   }
@@ -8173,7 +8178,7 @@
     }
   }
 
-  studio.services.sceneAnalysis = { apiBaseUrl, publicBaseUrl, imageRequestUrl, get, save, analyze, health, promptGuide, productPose, stripOriginalProduct };
+  studio.services.sceneAnalysis = { apiBaseUrl, reviewApiBaseUrl, publicBaseUrl, imageRequestUrl, get, save, analyze, health, promptGuide, productPose, stripOriginalProduct };
 })(globalThis.BayerStudio);
 
 
@@ -8199,42 +8204,124 @@
     return encodeURI(`${publicBase}/${value.replace(/^\.\//, '').replace(/^\//, '')}`);
   }
 
-  function referencesFor(result) {
-    const references = [
-      { role: 'scene', label: `场景参考 ${result.item.id}`, url: absoluteAssetUrl(result.item.image) },
+  function referencesFor(result, options = {}) {
+    const productReferences = [
       { role: 'product', label: `唯一产品参考 ${result.productReference.label}`, url: absoluteAssetUrl(result.productReference.image) },
       { role: 'proportion', label: result.productReference.proportionReference.label, url: absoluteAssetUrl(result.productReference.proportionReference.image) },
-      ...(result.productReference.additionalReferences || []).map(reference => ({ role: reference.kind || 'support', label: reference.label, url: absoluteAssetUrl(reference.image) })),
-      ...result.selectedProps.map(prop => ({ role: 'prop', label: `道具参考 ${prop.label}`, url: absoluteAssetUrl(prop.image) }))
+      ...(result.productReference.additionalReferences || []).map(reference => ({ role: reference.kind || 'support', label: reference.label, url: absoluteAssetUrl(reference.image) }))
     ];
-    return references.slice(0, 8);
+    if (options.hasSetAnchor) return productReferences.slice(0, 4);
+    return [
+      { role: 'scene', label: `场景参考 ${result.item.id}`, url: absoluteAssetUrl(result.item.image) },
+      ...productReferences,
+      ...result.selectedProps.map(prop => ({ role: 'prop', label: `道具参考 ${prop.label}`, url: absoluteAssetUrl(prop.image) }))
+    ].slice(0, 8);
   }
 
   async function generate(result, options = {}) {
     const baseUrl = studio.services.sceneAnalysis.apiBaseUrl();
     if (!baseUrl) throw new Error('尚未配置生图服务端地址');
     const count = studio.utils.clamp(options.count || 1, 1, 5);
+    const hasSetAnchor = Boolean(options.setAnchorDataUrl);
+    const references = referencesFor(result, { hasSetAnchor });
+    const requestId = globalThis.crypto?.randomUUID?.() || `generation-${Date.now()}-${Math.random().toString(36).slice(2)}`;
     const requestBody = JSON.stringify({
+      requestId,
       userId: anonymousUserId(),
       prompt: result.text,
       count,
       ratio: options.ratio || studio.state.prompt.ratio || '3:4',
       quality: options.quality === 'high' ? 'high' : 'medium',
-      references: referencesFor(result)
+      references,
+      setAnchorDataUrl: options.setAnchorDataUrl || ''
     });
     JSON.parse(requestBody);
-    const response = await fetch(`${baseUrl}/api/generate`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json; charset=utf-8' },
-      body: new Blob([requestBody], { type: 'application/json; charset=utf-8' })
-    });
+    let response;
+    try {
+      response = await fetch(`${baseUrl}/api/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json; charset=utf-8' },
+        body: new Blob([requestBody], { type: 'application/json; charset=utf-8' })
+      });
+    } catch (error) {
+      const transport = new Error(`网络传输中断（${error.message || 'Load failed'}）；服务端没有返回可确认结果，为避免重复扣费，系统未自动重试`);
+      transport.code = 'transport_error';
+      transport.requestId = requestId;
+      throw transport;
+    }
     const payload = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(payload.error || `GPT 生图失败（${response.status}）`);
+    if (!response.ok && response.status === 501 && ['127.0.0.1', 'localhost'].includes(location.hostname)) {
+      throw new Error('当前仍连接旧版 Python 静态预览，无法转发生图请求。请关闭旧预览窗口并重新双击“启动本地预览.command”。');
+    }
+    if (!response.ok) {
+      const failure = new Error(payload.error || `GPT 生图失败（${response.status}）`);
+      failure.code = payload.code || `http_${response.status}`;
+      failure.requestId = payload.requestId || requestId;
+      throw failure;
+    }
     if (!Array.isArray(payload.images) || !payload.images.length) throw new Error('GPT 未返回图片');
-    return { ...payload, request: { references: referencesFor(result), prompt: result.text, ratio: options.ratio || studio.state.prompt.ratio || '3:4', quality: options.quality === 'high' ? 'high' : 'medium' } };
+    return { ...payload, request: { requestId, references, hasSetAnchor, prompt: result.text, ratio: options.ratio || studio.state.prompt.ratio || '3:4', quality: options.quality === 'high' ? 'high' : 'medium' } };
   }
 
   studio.services.imageGeneration = { anonymousUserId, absoluteAssetUrl, referencesFor, generate };
+})(globalThis.BayerStudio);
+
+
+(function registerExperienceGenerationService(studio) {
+  'use strict';
+
+  const maxUploadBytes = 8 * 1024 * 1024;
+
+  function apiBaseUrl() {
+    const local = ['127.0.0.1', 'localhost'].includes(location.hostname);
+    const live = new URLSearchParams(location.search).get('experienceLive') === '1';
+    if (local && !live) return location.origin;
+    return studio.services.sceneAnalysis.apiBaseUrl();
+  }
+
+  function isLiveMode() {
+    return new URLSearchParams(location.search).get('experienceLive') === '1';
+  }
+
+  function fileDataUrl(file, label) {
+    if (!file || !String(file.type || '').startsWith('image/')) return Promise.reject(new Error(`${label}必须是图片`));
+    if (file.size > maxUploadBytes) return Promise.reject(new Error(`${label}超过8MB，请先导出较小版本；平台不会压缩产品图，以免损伤包装文字`));
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || ''));
+      reader.onerror = () => reject(new Error(`无法读取${label}`));
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function post(path, body) {
+    const base = apiBaseUrl();
+    if (!base) throw new Error('尚未配置体验生图服务端地址');
+    const requestId = globalThis.crypto?.randomUUID?.() || `experience-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    let response;
+    try {
+      response = await fetch(`${base}${path}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json; charset=utf-8' },
+        body: JSON.stringify({ ...body, requestId, userId: studio.services.imageGeneration.anonymousUserId() })
+      });
+    } catch (error) {
+      throw new Error(`网络传输中断（${error.message || 'Load failed'}）；系统不会自动重试，避免重复扣费`);
+    }
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(payload.error || `体验生图服务失败（${response.status}）`);
+    return payload;
+  }
+
+  function buildPrompt(input) {
+    return post('/api/experience/prompt', input);
+  }
+
+  function generate(input) {
+    return post('/api/experience/generate', input);
+  }
+
+  studio.services.experienceGeneration = { fileDataUrl, buildPrompt, generate, isLiveMode };
 })(globalThis.BayerStudio);
 
 
@@ -8242,10 +8329,12 @@
   'use strict';
 
   const localKey = 'bayer-review-history-pending-v1';
-  let memoryCache = { loadedAt: 0, guide: '' };
+  const maxPreviewLength = 450000;
+  const maxPendingRecords = 8;
+  const memoryCache = new Map();
 
   function apiUrl(path) {
-    const base = studio.services.sceneAnalysis.apiBaseUrl();
+    const base = studio.services.sceneAnalysis.reviewApiBaseUrl();
     if (!base) throw new Error('尚未配置评审服务端地址');
     return `${base}${path}`;
   }
@@ -8257,15 +8346,54 @@
   function rememberPending(record) {
     const records = pending().filter(item => item.id !== record.id);
     records.unshift({ ...record, syncState: 'pending' });
-    studio.services.storage.write(localKey, records.slice(0, 30));
+    studio.services.storage.write(localKey, records.slice(0, maxPendingRecords));
   }
 
   function clearPending(id) {
     studio.services.storage.write(localKey, pending().filter(item => item.id !== id));
   }
 
-  async function save(record) {
-    rememberPending(record);
+  function loadImage(dataUrl) {
+    return new Promise((resolve, reject) => {
+      const image = new Image();
+      image.onload = () => resolve(image);
+      image.onerror = () => reject(new Error('无法读取评审预览图'));
+      image.src = dataUrl;
+    });
+  }
+
+  async function previewDataUrl(dataUrl) {
+    if (String(dataUrl || '').length <= maxPreviewLength && /^data:image\/(?:jpeg|png|webp);base64,/.test(dataUrl || '')) return dataUrl;
+    const image = await loadImage(dataUrl);
+    const attempts = [
+      { size: 560, quality: 0.68 },
+      { size: 480, quality: 0.60 },
+      { size: 400, quality: 0.54 },
+      { size: 320, quality: 0.50 }
+    ];
+    for (const attempt of attempts) {
+      const scale = Math.min(1, attempt.size / Math.max(image.naturalWidth, image.naturalHeight));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+      canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+      const context = canvas.getContext('2d');
+      context.fillStyle = '#ffffff';
+      context.fillRect(0, 0, canvas.width, canvas.height);
+      context.drawImage(image, 0, 0, canvas.width, canvas.height);
+      const preview = canvas.toDataURL('image/jpeg', attempt.quality);
+      if (preview.length <= maxPreviewLength) return preview;
+    }
+    throw new Error('评审预览图压缩后仍超过450KB');
+  }
+
+  async function compactRecord(record) {
+    const source = record.previewDataUrl || record.imageDataUrl;
+    const preview = await previewDataUrl(source);
+    const { imageDataUrl, ...metadata } = record;
+    return { ...metadata, previewDataUrl: preview };
+  }
+
+  async function post(record) {
     const response = await fetch(apiUrl('/api/reviews'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json; charset=utf-8' },
@@ -8274,11 +8402,31 @@
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(payload.error || `评审同步失败（${response.status}）`);
     clearPending(record.id);
-    memoryCache.loadedAt = 0;
+    memoryCache.clear();
     return payload.review;
   }
 
+  async function save(record) {
+    const compact = await compactRecord(record);
+    rememberPending(compact);
+    return post(compact);
+  }
+
+  async function syncPending() {
+    const records = [...pending()];
+    for (const record of records) {
+      try {
+        const compact = await compactRecord(record);
+        rememberPending(compact);
+        await post(compact);
+      } catch (error) {
+        // 保留本地记录；本次刷新不反复请求同一失败项。
+      }
+    }
+  }
+
   async function list(limit = 60) {
+    await syncPending();
     const response = await fetch(apiUrl(`/api/reviews?limit=${Math.max(1, Math.min(100, limit))}`), { cache: 'no-store' });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(payload.error || `读取历史评审失败（${response.status}）`);
@@ -8286,20 +8434,29 @@
   }
 
   async function qualityMemory(options = {}) {
-    if (!options.force && Date.now() - memoryCache.loadedAt < 5 * 60 * 1000) return memoryCache.guide;
+    const context = {
+      combo: String(options.combo || ''),
+      presentation: String(options.presentation || ''),
+      visualStyle: String(options.visualStyle || '')
+    };
+    const key = JSON.stringify(context);
+    const cached = memoryCache.get(key);
+    if (!options.force && cached && Date.now() - cached.loadedAt < 5 * 60 * 1000) return cached.guide;
     try {
-      const response = await fetch(apiUrl('/api/review-memory'), { cache: 'no-store' });
+      const query = new URLSearchParams(context);
+      const response = await fetch(apiUrl(`/api/review-memory?${query}`), { cache: 'no-store' });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload.error || `读取质量记忆失败（${response.status}）`);
-      memoryCache = { loadedAt: Date.now(), guide: String(payload.guide || '') };
-      return memoryCache.guide;
+      const guide = String(payload.guide || '');
+      memoryCache.set(key, { loadedAt: Date.now(), guide });
+      return guide;
     } catch (error) {
-      memoryCache = { loadedAt: Date.now(), guide: '' };
+      memoryCache.set(key, { loadedAt: Date.now(), guide: '' });
       return '';
     }
   }
 
-  studio.services.reviewHistory = { save, list, qualityMemory, pending };
+  studio.services.reviewHistory = { save, list, qualityMemory, pending, syncPending };
 })(globalThis.BayerStudio);
 
 
@@ -8724,8 +8881,12 @@
     );
   }
 
-  function multiAxis(key, label, values, selected) {
-    return `<div class="axis" data-multi-filter="${key}"><b>${label}</b><button class="pill ${selected.size ? '' : 'active'}" data-value="全部">全部</button>${values.map(value => `<button class="pill ${selected.has(value) ? 'active' : ''}" data-value="${value}">${value}</button>`).join('')}</div>`;
+  function filterSelect(key, label, values, selected) {
+    return `<label>${label}<select data-library-filter="${key}">${values.map(value => `<option value="${studio.utils.escapeHtml(value)}"${selected === value ? ' selected' : ''}>${studio.utils.escapeHtml(value)}</option>`).join('')}</select></label>`;
+  }
+
+  function selectedSetValue(selected) {
+    return selected.size ? [...selected][0] : '全部';
   }
 
   function tagMarkup(item) {
@@ -8850,20 +9011,25 @@
     const activeTotal = showingProps ? props.length : materials.length;
     container.innerHTML = `
       <header class="page-head"><div class="eyebrow">MATERIAL LIBRARY</div><h1>素材库</h1><p class="subtitle">场景参考 ${materials.length} 张 · 道具 ${props.length} 张 · 共 ${materials.length + props.length} 张；人工分类同步影响提示词。</p></header>
-      <section><div class="axis" data-filter="materialType"><b>素材类型</b>${studio.data.classification.materialTypes.map(value => `<button class="pill ${filters.materialType === value ? 'active' : ''}" data-value="${value}">${value}</button>`).join('')}</div>${showingProps ? `<div class="axis" data-filter="propCategory"><b>道具分类</b>${['全部', ...studio.data.classification.propCategories].map(value => `<button class="pill ${filters.propCategory === value ? 'active' : ''}" data-value="${value}">${value}</button>`).join('')}</div>` : ''}${singleAxes.filter(([key]) => !showingProps || ['cameraAngle', 'subjectOrientation'].includes(key)).map(([key, label, values]) => `<div class="axis" data-filter="${key}"><b>${label}</b>${['全部', ...values].map(value => `<button class="pill ${filters[key] === value ? 'active' : ''}" data-value="${value}">${value}</button>`).join('')}</div>`).join('')}${!showingProps && filters.format === '细节展示' ? multiAxis('detailTags', '细节展示', studio.data.classification.detailTags, filters.detailTags) : ''}${showingProps ? '' : multiAxis('productForms', '产品组合', studio.data.classification.productForms, filters.productForms)}</section>
+      <section class="library-filter-panel"><div class="library-filter-grid">
+        ${filterSelect('materialType', '素材类型', studio.data.classification.materialTypes, filters.materialType)}
+        ${showingProps
+          ? `${filterSelect('propCategory', '道具分类', ['全部', ...studio.data.classification.propCategories], filters.propCategory)}${singleAxes.filter(([key]) => ['cameraAngle', 'subjectOrientation'].includes(key)).map(([key, label, values]) => filterSelect(key, label, ['全部', ...values], filters[key])).join('')}`
+          : `${singleAxes.map(([key, label, values]) => filterSelect(key, label, ['全部', ...values], filters[key])).join('')}${filterSelect('productForms', '产品组合', ['全部', ...studio.data.classification.productForms], selectedSetValue(filters.productForms))}${filters.format === '细节展示' ? filterSelect('detailTags', '细节展示', ['全部', ...studio.data.classification.detailTags], selectedSetValue(filters.detailTags)) : ''}`}
+      </div></section>
       <div class="toolbar"><span class="count">显示 ${visible.length} / ${activeTotal} 张</span><div class="actions"><button class="action primary" id="exportClassifications">导出当前分类</button><button class="action" id="importClassifications">导入分类</button><input id="classificationFile" type="file" accept=".json,application/json" hidden><button class="action" id="resetAllClassifications">恢复全部初始分类</button></div></div>
       <section class="grid">${visible.map(item => `
         <article class="card" data-material="${item.id}"><img src="${encodeURI(item.image)}" alt="${studio.utils.escapeHtml(item.title)}" loading="lazy"><div class="card-body"><span class="code">${item.id}</span><h2>${studio.utils.escapeHtml(item.title)}</h2><div class="tags">${tagMarkup(item)}</div><div class="actions"><button class="action" data-edit-material="${item.id}">编辑分类</button>${item.sourceUrl ? `<a class="source-link" href="${studio.utils.escapeHtml(item.sourceUrl)}" target="_blank" rel="noopener noreferrer">查看原始来源</a>` : ''}</div></div>${studio.state.libraryEditingId === item.id ? editorMarkup(item) : ''}</article>`).join('')}</section>`;
 
-    container.querySelectorAll('[data-filter] .pill').forEach(button => button.onclick = () => {
-      filters[button.parentElement.dataset.filter] = button.dataset.value;
-      if (button.parentElement.dataset.filter === 'format' && button.dataset.value !== '细节展示') filters.detailTags.clear();
-      render(container);
-    });
-    container.querySelectorAll('[data-multi-filter] .pill').forEach(button => button.onclick = () => {
-      const set = filters[button.parentElement.dataset.multiFilter];
-      if (button.dataset.value === '全部') set.clear();
-      else set.has(button.dataset.value) ? set.delete(button.dataset.value) : set.add(button.dataset.value);
+    container.querySelectorAll('[data-library-filter]').forEach(select => select.onchange = () => {
+      const key = select.dataset.libraryFilter;
+      if (key === 'productForms' || key === 'detailTags') {
+        filters[key].clear();
+        if (select.value !== '全部') filters[key].add(select.value);
+      } else {
+        filters[key] = select.value;
+      }
+      if (key === 'format' && select.value !== '细节展示') filters.detailTags.clear();
       render(container);
     });
     container.querySelectorAll('[data-edit-material]').forEach(button => button.onclick = () => { studio.state.libraryEditingId = button.dataset.editMaterial; render(container); });
@@ -9055,6 +9221,8 @@
     studio.state.generation.images = [];
     studio.state.generation.resultIndex = 0;
     studio.state.generation.message = '';
+    studio.state.generation.failedResults = [];
+    studio.state.generation.setAnchorDataUrl = '';
   }
 
   function invalidateResults() {
@@ -9156,9 +9324,11 @@
     } catch (error) {
       analysisFailure = error.message;
     }
-    state.qualityMemory = await studio.services.reviewHistory.qualityMemory();
+    const plannedConfigurations = configurations();
+    const qualityMemories = await Promise.all(plannedConfigurations.map(config => studio.services.reviewHistory.qualityMemory(config)));
+    state.qualityMemory = qualityMemories.some(Boolean) ? '已按各镜头配置读取' : '';
     const sceneFingerprint = studio.services.sceneAnalysis.get(item.id);
-    const results = configurations().map(config => {
+    const results = plannedConfigurations.map((config, configIndex) => {
       const generatedItem = {
         ...item,
         style: config.visualStyle,
@@ -9177,7 +9347,7 @@
         tabletSupport: config.tabletSupport,
         blisterState: config.blisterState,
         setContext: config.setContext || null,
-        qualityMemory: state.qualityMemory
+        qualityMemory: qualityMemories[configIndex]
       });
       const key = resultKey(item.id, state, config.variantIndex, selectedProps, config);
       return {
@@ -9335,6 +9505,8 @@
       message: '',
       health: null,
       images: [],
+      failedResults: [],
+      setAnchorDataUrl: '',
       reviewDrafts: {}
     };
   }
@@ -9378,6 +9550,29 @@
     return `<figure class="generated-card" data-generated-id="${image.id}"><img src="${src}" alt="生成结果 ${index + 1}"><figcaption><div><b>${studio.utils.escapeHtml(image.label || `生成结果 ${index + 1}`)}</b><span>${studio.utils.escapeHtml(image.config?.combo || '')} · ${studio.utils.escapeHtml(image.config?.presentation || '')}</span></div><a class="action" href="${src}" download="bayer-shiguang-${image.id}.${extension}">下载原图</a></figcaption>${reviewMarkup(image)}</figure>`;
   }
 
+  function generatedImages(payload, result, resultIndex, state) {
+    return payload.images.map((image, imageIndex) => ({
+      ...image,
+      id: globalThis.crypto?.randomUUID?.() || `image-${Date.now()}-${resultIndex}-${imageIndex}`,
+      label: result.mode === 'set' ? `套图镜头 ${resultIndex + 1}` : `方案 ${resultIndex + 1}`,
+      resultKey: result.key,
+      prompt: result.text,
+      config: result.config,
+      mode: result.mode,
+      sceneId: result.sourceItem?.id || result.item.id,
+      references: payload.request?.references || [],
+      requestId: payload.request?.requestId || payload.requestId || '',
+      model: payload.model || state.health?.openaiModel || 'gpt-image-2',
+      quality: state.quality,
+      createdAt: new Date().toISOString()
+    }));
+  }
+
+  function failureControls(state) {
+    if (!state.failedResults.length || state.running) return '';
+    return `<div class="generation-retry">${state.failedResults.map(failure => `<button class="action" type="button" data-retry-generation="${failure.index}">只重试镜头 ${failure.index + 1}</button>`).join('')}<small>失败镜头不会自动重试，避免重复扣费；请确认后手动点击一次。</small></div>`;
+  }
+
   function render(container, options = {}) {
     const state = studio.state.generation;
     const results = studio.state.prompt.results || [];
@@ -9393,7 +9588,7 @@
       ${selected ? `<div class="generation-controls"><label>预览提示词<select id="generationResult">${optionsMarkup}</select></label><label>质量<select id="generationQuality"><option value="medium"${state.quality === 'medium' ? ' selected' : ''}>测试 medium</option><option value="high"${state.quality === 'high' ? ' selected' : ''}>成片 high</option></select></label></div>
         <div class="generation-references">${references.map(reference => `<figure><img src="${encodeURI(reference.image)}" alt="${studio.utils.escapeHtml(reference.label)}"><figcaption>${studio.utils.escapeHtml(reference.label)}</figcaption></figure>`).join('')}</div>
         <label class="generation-prompt"><b>当前镜头生图提示词</b><textarea id="generationPrompt" rows="10">${studio.utils.escapeHtml(selected.text)}</textarea></label>
-        <div class="generation-submit"><span>${studio.utils.escapeHtml(state.message || (results.length > 1 ? '将逐张生成；单张失败不会重复扣除已成功镜头。' : '生成前会自动读取45°产品比例基准。'))}</span><button class="action primary" id="startGeneration" ${state.running ? 'disabled' : ''}>${state.running ? 'GPT 正在生成…' : batchLabel}</button></div>`
+        <div class="generation-submit"><span>${studio.utils.escapeHtml(state.message || (results.length > 1 ? '封面创建环境母版；内页以封面为第一输入，只改变拍摄角度和产品展示。' : '生成前会自动读取45°产品比例基准。'))}</span><button class="action primary" id="startGeneration" ${state.running ? 'disabled' : ''}>${state.running ? 'GPT 正在生成…' : batchLabel}</button>${failureControls(state)}</div>`
         : '<div class="generation-empty"><h2>请先生成并确认提示词</h2><p>提示词与生图已合并在当前面板；生成新提示词时上一轮未归档图片会自动清空。</p></div>'}
       </section>${state.images.length ? `<section class="generation-results"><div class="history-heading"><div><h2>本轮生成结果</h2><p>请逐张评分；提交后写入共享历史和质量记忆。</p></div></div><div class="generated-grid">${state.images.map(imageMarkup).join('')}</div></section>` : ''}`;
 
@@ -9406,10 +9601,38 @@
     if (!selected) return;
     container.querySelector('#generationResult').onchange = event => { state.resultIndex = Number(event.target.value); state.message = ''; render(container, options); };
     container.querySelector('#generationQuality').onchange = event => { state.quality = event.target.value; render(container, options); };
-    container.querySelector('#generationPrompt').oninput = event => { selected.text = event.target.value; state.images = []; };
+    container.querySelector('#generationPrompt').oninput = event => {
+      selected.text = event.target.value;
+      state.images = [];
+      state.failedResults = [];
+      state.setAnchorDataUrl = '';
+    };
+
+    async function generateResult(result, index) {
+      const payload = await studio.services.imageGeneration.generate(result, {
+        count: 1,
+        quality: state.quality,
+        ratio: studio.state.prompt.ratio,
+        setAnchorDataUrl: result.mode === 'set' && index > 0 ? state.setAnchorDataUrl : ''
+      });
+      const generated = generatedImages(payload, result, index, state);
+      state.images = state.images.filter(image => image.resultKey !== result.key);
+      state.images.push(...generated);
+      state.images.sort((left, right) => results.findIndex(resultItem => resultItem.key === left.resultKey) - results.findIndex(resultItem => resultItem.key === right.resultKey));
+      if (result.mode === 'set' && index === 0 && generated[0]) state.setAnchorDataUrl = imageDataUrl(generated[0]);
+      return generated.length;
+    }
+
+    function generationFailure(error, index) {
+      const request = error.requestId ? ` [请求 ${error.requestId}]` : '';
+      return { index, message: `镜头${index + 1}：${error.message}${request}`, code: error.code || '' };
+    }
+
     container.querySelector('#startGeneration').onclick = async () => {
       state.running = true;
       state.images = [];
+      state.failedResults = [];
+      state.setAnchorDataUrl = '';
       state.message = `正在按顺序提交 ${results.length} 个镜头，请不要关闭页面…`;
       render(container, options);
       let completed = 0;
@@ -9417,31 +9640,46 @@
       for (let index = 0; index < results.length; index += 1) {
         const result = results[index];
         try {
-          const payload = await studio.services.imageGeneration.generate(result, { count: 1, quality: state.quality, ratio: studio.state.prompt.ratio });
-          const generated = payload.images.map((image, imageIndex) => ({
-            ...image,
-            id: globalThis.crypto?.randomUUID?.() || `image-${Date.now()}-${index}-${imageIndex}`,
-            label: result.mode === 'set' ? `套图镜头 ${index + 1}` : `方案 ${index + 1}`,
-            resultKey: result.key,
-            prompt: result.text,
-            config: result.config,
-            mode: result.mode,
-            sceneId: result.sourceItem?.id || result.item.id,
-            references: payload.request?.references || [],
-            model: payload.model || state.health?.openaiModel || 'gpt-image-2',
-            quality: state.quality,
-            createdAt: new Date().toISOString()
-          }));
-          state.images.push(...generated);
-          completed += generated.length;
+          completed += await generateResult(result, index);
         } catch (error) {
-          failures.push(`镜头${index + 1}：${error.message}`);
+          const failure = generationFailure(error, index);
+          failures.push(failure);
+          state.failedResults.push(failure);
+          if (result.mode === 'set' && index === 0) {
+            failures.push({ index: -1, message: '封面未生成，已停止后续镜头，避免在没有环境母版时浪费额度' });
+            break;
+          }
         }
       }
       state.running = false;
-      state.message = failures.length ? `已完成 ${completed} 张；${failures.join('；')}` : `生成完成：${completed} 张。请逐张进行1–5分评审。`;
+      state.message = failures.length ? `已完成 ${completed} 张；${failures.map(failure => failure.message).join('；')}` : `生成完成：${completed} 张。请逐张进行1–5分评审。`;
       render(container, options);
     };
+
+    container.querySelectorAll('[data-retry-generation]').forEach(button => button.onclick = async () => {
+      const index = Number(button.dataset.retryGeneration);
+      const result = results[index];
+      if (!result) return;
+      if (result.mode === 'set' && index > 0 && !state.setAnchorDataUrl) {
+        state.message = '环境母版已丢失，不能单独重试内页；请重新生成封面。';
+        return render(container, options);
+      }
+      state.running = true;
+      state.message = `正在只重试镜头 ${index + 1}…`;
+      render(container, options);
+      try {
+        await generateResult(result, index);
+        state.failedResults = state.failedResults.filter(failure => failure.index !== index);
+        state.message = `镜头 ${index + 1} 已生成；其他已成功镜头没有重复提交。`;
+      } catch (error) {
+        const failure = generationFailure(error, index);
+        state.failedResults = [...state.failedResults.filter(item => item.index !== index), failure];
+        state.message = failure.message;
+      } finally {
+        state.running = false;
+        render(container, options);
+      }
+    });
 
     container.querySelectorAll('[data-review-box]').forEach(box => {
       const image = state.images.find(candidate => candidate.id === box.dataset.reviewBox);
@@ -9501,6 +9739,7 @@
 
   function reviewImage(review) {
     if (review.imageUrl) return review.imageUrl;
+    if (review.previewDataUrl) return review.previewDataUrl;
     if (review.imageDataUrl) return review.imageDataUrl;
     return '';
   }
@@ -9538,19 +9777,149 @@
 })(globalThis.BayerStudio);
 
 
+(function registerExperienceFeature(studio) {
+  'use strict';
+
+  function initialize() {
+    const liveMode = studio.services.experienceGeneration.isLiveMode();
+    studio.state.experience = {
+      productDataUrl: '',
+      environmentDataUrl: '',
+      prompt: '',
+      feedback: '',
+      result: null,
+      running: false,
+      promptRunning: false,
+      liveMode,
+      message: liveMode ? '真实接口模式：生成图片会调用 Gemini/OpenAI 并计入每日额度。' : '产品图必填；居家环境参考图可选。上传图片不会写入素材库或历史记录。',
+      usage: null
+    };
+  }
+
+  function imagePreview(dataUrl, label, inputId, required) {
+    return `<label class="experience-upload ${dataUrl ? 'has-image' : ''}" for="${inputId}">
+      <input id="${inputId}" type="file" accept="image/png,image/jpeg,image/webp">
+      ${dataUrl ? `<img src="${dataUrl}" alt="${studio.utils.escapeHtml(label)}">` : '<span class="upload-plus">＋</span>'}
+      <b>${studio.utils.escapeHtml(label)}${required ? ' · 必填' : ' · 可选'}</b>
+      <small>${dataUrl ? '点击替换图片' : 'PNG / JPG / WebP，单张不超过8MB'}</small>
+    </label>`;
+  }
+
+  function resultMarkup(state) {
+    if (!state.result) return '';
+    const src = `data:${state.result.mimeType || 'image/jpeg'};base64,${state.result.b64Json}`;
+    return `<section class="experience-result"><div class="history-heading"><div><h2>本次结果</h2><p>可以填写改进意见再次生图；再次生成计入每日15张额度。</p></div></div>
+      <div class="experience-result-layout"><figure class="generated-card"><img src="${src}" alt="体验生图结果"><figcaption><b>居家背景改图</b><a class="action" href="${src}" download="experience-image.jpg">下载原图</a></figcaption></figure>
+      <div class="experience-feedback"><label><b>改进意见</b><textarea id="experienceFeedback" rows="7" placeholder="例如：背景换成浅灰色布艺沙发，光线更自然；产品本身保持完全不变。">${studio.utils.escapeHtml(state.feedback)}</textarea></label><button class="action primary" id="experienceRegenerate" ${state.running ? 'disabled' : ''}>${state.running ? '正在再次生图…' : '按改进意见再次生图'}</button></div></div></section>`;
+  }
+
+  function render(container) {
+    const state = studio.state.experience;
+    container.innerHTML = `<header class="page-head"><div class="eyebrow">TEMPORARY EXPERIENCE</div><h1>体验生图</h1><p class="subtitle">上传真实产品图，让 AI 只把背景改成合理的居家环境。产品原始角度、形状、比例、包装、品牌与文字必须保持不变。</p></header>
+      <section class="experience-panel"><div class="experience-note"><b>${state.liveMode ? '真实接口模式' : '本地模拟模式'}</b><span>坚持 AI 改图，不做抠图、合成、边缘修整或自动异常判断；每位用户每天15张，全站每天30张。</span></div>
+      <div class="experience-upload-grid">${imagePreview(state.productDataUrl, '产品原图', 'experienceProduct', true)}${imagePreview(state.environmentDataUrl, '居家环境参考', 'experienceEnvironment', false)}</div>
+      <div class="experience-actions"><span>${studio.utils.escapeHtml(state.message)}</span><button class="action" id="experienceBuildPrompt" ${state.promptRunning || !state.productDataUrl ? 'disabled' : ''}>${state.promptRunning ? 'Gemini 正在生成…' : 'Gemini 生成提示词'}</button></div>
+      <label class="experience-prompt"><b>可编辑提示词</b><textarea id="experiencePrompt" rows="10" placeholder="上传产品图后，让 Gemini 生成提示词；也可以直接填写。">${studio.utils.escapeHtml(state.prompt)}</textarea></label>
+      <div class="experience-submit"><span>${state.usage ? `今日已用：个人 ${state.usage.userDaily}/15 · 全站 ${state.usage.siteDaily}/30` : '生成1张；失败不会自动重试。'}</span><button class="action primary" id="experienceGenerate" ${state.running || !state.productDataUrl || !state.prompt.trim() ? 'disabled' : ''}>${state.running ? 'GPT 正在改图…' : '生成居家背景图'}</button></div></section>
+      ${resultMarkup(state)}`;
+
+    async function bindUpload(id, key, label) {
+      const input = container.querySelector(`#${id}`);
+      input.onchange = async () => {
+        const file = input.files?.[0];
+        if (!file) return;
+        try {
+          state[key] = await studio.services.experienceGeneration.fileDataUrl(file, label);
+          state.prompt = '';
+          state.feedback = '';
+          state.result = null;
+          state.message = `${label}已载入；原图仅保存在当前页面内存中。`;
+        } catch (error) {
+          state.message = error.message;
+        }
+        render(container);
+      };
+    }
+    bindUpload('experienceProduct', 'productDataUrl', '产品图');
+    bindUpload('experienceEnvironment', 'environmentDataUrl', '环境参考图');
+
+    container.querySelector('#experiencePrompt').oninput = event => {
+      state.prompt = event.target.value;
+      state.result = null;
+      const generateButton = container.querySelector('#experienceGenerate');
+      if (generateButton) generateButton.disabled = state.running || !state.productDataUrl || !state.prompt.trim();
+      container.querySelector('.experience-result')?.remove();
+    };
+    container.querySelector('#experienceBuildPrompt').onclick = async () => {
+      state.promptRunning = true;
+      state.result = null;
+      state.message = 'Gemini 正在根据产品摆放角度选择沙发、地板或床边等合理居家环境…';
+      render(container);
+      try {
+        const payload = await studio.services.experienceGeneration.buildPrompt({ productDataUrl: state.productDataUrl, environmentDataUrl: state.environmentDataUrl });
+        state.prompt = payload.prompt || '';
+        state.message = payload.mock ? '本地模拟提示词已生成；未调用 Gemini。' : 'Gemini 提示词已生成，可以编辑后再生图。';
+      } catch (error) {
+        state.message = error.message;
+      } finally {
+        state.promptRunning = false;
+        render(container);
+      }
+    };
+
+    async function generate(feedback) {
+      state.running = true;
+      state.message = feedback ? '正在按改进意见再次生成；原产品图仍是最高优先级基准…' : '正在把产品放入合理的居家环境…';
+      render(container);
+      try {
+        const previousImageDataUrl = state.result ? `data:${state.result.mimeType || 'image/jpeg'};base64,${state.result.b64Json}` : '';
+        const payload = await studio.services.experienceGeneration.generate({
+          productDataUrl: state.productDataUrl,
+          environmentDataUrl: state.environmentDataUrl,
+          previousImageDataUrl,
+          prompt: state.prompt,
+          feedback
+        });
+        state.result = payload.images?.[0] || null;
+        state.usage = payload.usage || state.usage;
+        state.message = payload.mock ? '本地模拟流程完成；显示的是上传产品原图，未调用 OpenAI。' : '生成完成。需要调整时填写改进意见并再次生图。';
+      } catch (error) {
+        state.message = error.message;
+      } finally {
+        state.running = false;
+        render(container);
+      }
+    }
+
+    container.querySelector('#experienceGenerate').onclick = () => generate('');
+    const feedback = container.querySelector('#experienceFeedback');
+    if (feedback) feedback.oninput = event => { state.feedback = event.target.value; };
+    const regenerate = container.querySelector('#experienceRegenerate');
+    if (regenerate) regenerate.onclick = () => {
+      if (!state.feedback.trim()) return alert('请先填写本次改进意见');
+      generate(state.feedback.trim());
+    };
+  }
+
+  studio.features.experience = { initialize, render };
+})(globalThis.BayerStudio);
+
+
 (function startApplication(studio) {
   'use strict';
   const views = [
     ['library', '01', '素材库'],
     ['modeling', '02', '产品建模'],
     ['promptWorkspace', '03', '创作与生图'],
-    ['history', '04', '历史评审']
+    ['history', '04', '历史评审'],
+    ...(document.querySelector('meta[name="bayer-experience-enabled"]')?.content === 'true' ? [['experience', '05', '体验生图']] : [])
   ];
   studio.features.library.initialize();
   studio.features.modeling.initialize();
   studio.features.promptWorkspace.initialize();
   studio.features.generation.initialize();
   studio.features.history.initialize();
+  studio.features.experience.initialize();
   studio.state.currentView = 'library';
 
   const app = document.querySelector('#app');

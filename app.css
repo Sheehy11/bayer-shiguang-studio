@@ -1,4 +1,4 @@
-/* Bayer Shiguang Visual Studio | generated 2026-08-28T10:32:02.779Z */
+/* Bayer Shiguang Visual Studio | generated build */
 :root {
   --ink: #24211f;
   --muted: #776f68;
@@ -125,6 +125,10 @@ textarea { width: 100%; min-height: 180px; resize: vertical; padding: 14px; bord
 .product-card img { display: block; width: 100%; }
 .product-card span { display: block; padding: 12px 14px; color: var(--muted); font-size: 13px; font-weight: 700; }
 .product-grid + .section-title { margin-top: 32px; }
+.library-filter-panel { margin-top: 24px; padding: 16px; border: 1px solid var(--line); border-radius: 15px; background: rgba(255,255,255,.48); }
+.library-filter-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+.library-filter-grid label { display: grid; gap: 6px; color: var(--muted); font-size: 12px; }
+.library-filter-grid select { width: 100%; min-width: 0; border-radius: 9px; }
 .workspace-layout { display: grid; grid-template-columns: minmax(0, 1fr) 290px; gap: 38px; align-items: start; }
 .side-panel { padding-left: 28px; border-left: 1px solid var(--line); }
 .side-panel h3, .section-title { margin: 0 0 12px; }
@@ -187,6 +191,8 @@ textarea { width: 100%; min-height: 180px; resize: vertical; padding: 14px; bord
 .generation-references figcaption { padding-top: 6px; color: var(--muted); font-size: 10px; text-align: center; }
 .generation-prompt textarea { min-height: 220px; }
 .generation-submit { margin-top: 16px; color: var(--muted); font-size: 12px; }
+.generation-retry { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.generation-retry small { flex-basis: 100%; color: #8a5a13; }
 .generation-empty { padding: 44px 20px; text-align: center; }
 .generated-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 18px; }
 .generated-card { margin: 0; overflow: hidden; border: 1px solid var(--line); border-radius: 14px; background: #fff; }
@@ -235,6 +241,23 @@ textarea { width: 100%; min-height: 180px; resize: vertical; padding: 14px; bord
 .history-card-body > span, .history-card-body p { color: var(--muted); font-size: 12px; }
 .history-score { width: fit-content; padding: 5px 8px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font-weight: 850; }
 .history-card details p { max-height: 180px; overflow: auto; white-space: pre-wrap; }
+.experience-panel, .experience-result { margin-top: 24px; padding: 24px; border: 1px solid var(--line); border-radius: 16px; background: rgba(255,255,255,.72); }
+.experience-note, .experience-actions, .experience-submit { display: flex; align-items: center; justify-content: space-between; gap: 16px; color: var(--muted); font-size: 12px; }
+.experience-note b { color: var(--ink); white-space: nowrap; }
+.experience-upload-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin: 20px 0; }
+.experience-upload { display: grid; place-items: center; min-height: 260px; padding: 16px; border: 1px dashed var(--line); border-radius: 14px; background: #fff; text-align: center; cursor: pointer; }
+.experience-upload input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.experience-upload img { width: 100%; height: 230px; object-fit: contain; margin-bottom: 10px; border-radius: 10px; background: #f7f4ef; }
+.experience-upload b, .experience-upload small { margin-top: 6px; }
+.experience-upload small { color: var(--muted); }
+.upload-plus { display: grid; place-items: center; width: 58px; height: 58px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); font-size: 30px; }
+.experience-prompt { display: grid; gap: 8px; margin-top: 18px; }
+.experience-prompt textarea { min-height: 220px; }
+.experience-submit { margin-top: 16px; }
+.experience-result-layout { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(280px, .75fr); gap: 18px; }
+.experience-feedback { display: grid; align-content: start; gap: 14px; }
+.experience-feedback label { display: grid; gap: 8px; }
+.experience-feedback textarea { min-height: 190px; }
 
 @media (max-width: 1000px) {
   .workspace-layout { grid-template-columns: 1fr; }
@@ -247,5 +270,7 @@ textarea { width: 100%; min-height: 180px; resize: vertical; padding: 14px; bord
   .generation-health, .generation-submit { align-items: stretch; flex-direction: column; }
   .mode-buttons, .shot-grid { grid-template-columns: 1fr; }
   .set-intro, .history-summary { align-items: stretch; flex-direction: column; }
+  .experience-upload-grid, .experience-result-layout { grid-template-columns: 1fr; }
+  .experience-note, .experience-actions, .experience-submit { align-items: stretch; flex-direction: column; }
   .history-summary .action { margin-left: 0; }
 }
