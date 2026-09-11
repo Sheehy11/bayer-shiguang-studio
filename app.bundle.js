@@ -7999,7 +7999,7 @@
     tabletPalm: { file: 'ref-药片-掌心.png', label: '掌心承托药片' },
     tabletHorizontal: { file: 'ref-药片-横向夹持.png', label: '药片横向夹持与厚度' },
     tabletVertical: { file: 'ref-药片-竖向夹持.png', label: '药片竖向夹持与长度' },
-    proportionReference: { file: '06_包装盒药板药片_45度组合.png', label: '包装盒、药板与药片 45° 比例基准' },
+    proportionReference: { file: '06_包装盒药板药片_45度组合.png', label: '包装盒、药板与药片 45° 产品标准母版（颜色、身份与比例）' },
     root: productRoot
   };
 
@@ -8112,6 +8112,9 @@
 
   function generationFailureMessage(error) {
     const base = error?.message || '图片生成失败';
+    if (/no credits remaining|insufficient[_ ]quota|billing|credit balance/i.test(base) || error?.code === 'insufficient_quota') {
+      return 'OpenAI API 生图额度已用尽，请充值后再手动重试。本次没有生成新图，旧图已完整保留。';
+    }
     if (['timeout', 'transport_error', 'upstream_timeout', 'cancelled'].includes(error?.code)) {
       return `${base} 没有自动重试。本次结果未确认，请先打开“历史评审”查看是否已有图片，再决定是否重新生成。`;
     }
@@ -8128,7 +8131,7 @@
   // v2 separates environmental structure from the original product, so legacy
   // fingerprints can no longer leak pills, bottles or holders into prompts.
   const storageKey = 'bayer-scene-fingerprints-v2';
-  const requiredApiVersion = '2026-09-02.2';
+  const requiredApiVersion = '2026-09-11.2';
 
   function isLocalPreview() {
     return ['127.0.0.1', 'localhost'].includes(location.hostname);
@@ -8199,8 +8202,10 @@
     const baseUrl = apiBaseUrl();
     if (!baseUrl) throw new Error('尚未配置 Gemini 服务端地址');
     try {
+      const accessHeaders = await studio.services.accessSession.authorizationHeader(baseUrl);
       const payload = await studio.services.request.requestJson(`${baseUrl}/api/analyze-scene`, {
         method: 'POST',
+        headers: accessHeaders,
         body: {
           sceneId: item.id,
           imageDataUrl: await imageDataUrl(item.image),
@@ -8223,6 +8228,26 @@
       failure.code = error.code || 'analysis_error';
       throw failure;
     }
+  }
+
+  async function validateCleanPlate({ imageDataUrl: generatedImageDataUrl, sourceItem, selectedProps = [], signal } = {}) {
+    const baseUrl = apiBaseUrl();
+    if (!baseUrl) throw new Error('尚未配置 Gemini 服务端地址');
+    const accessHeaders = await studio.services.accessSession.authorizationHeader(baseUrl);
+    const payload = await studio.services.request.requestJson(`${baseUrl}/api/validate-clean-plate`, {
+      method: 'POST',
+      headers: accessHeaders,
+      body: {
+        imageDataUrl: generatedImageDataUrl,
+        sceneImageDataUrl: await imageDataUrl(sourceItem.image),
+        expectedPropGroups: Math.min(2, selectedProps.length),
+        propLabels: selectedProps.map(prop => prop.label)
+      },
+      timeoutMs: studio.services.request.timeouts.analysis,
+      signal
+    });
+    if (!payload.validation || typeof payload.validation.pass !== 'boolean') throw new Error('Gemini 未返回有效母版质检结果');
+    return payload.validation;
   }
 
   function stripOriginalProduct(text) {
@@ -8265,7 +8290,102 @@
     }
   }
 
-  studio.services.sceneAnalysis = { apiBaseUrl, reviewApiBaseUrl, publicBaseUrl, imageRequestUrl, get, save, analyze, health, promptGuide, productPose, stripOriginalProduct, requiredApiVersion };
+  studio.services.sceneAnalysis = { apiBaseUrl, reviewApiBaseUrl, publicBaseUrl, imageRequestUrl, get, save, analyze, validateCleanPlate, health, promptGuide, productPose, stripOriginalProduct, requiredApiVersion };
+})(globalThis.BayerStudio);
+
+
+(function registerAccessSessionService(studio) {
+  'use strict';
+
+  const storageKey = 'bayer-private-session-v1';
+  let pending = null;
+
+  function isLocalMock(apiBaseUrl) {
+    return ['127.0.0.1', 'localhost'].includes(location.hostname) && apiBaseUrl === location.origin;
+  }
+
+  function tokenExpired(token) {
+    try {
+      const encoded = token.split('.')[0].replace(/-/g, '+').replace(/_/g, '/');
+      const payload = JSON.parse(decodeURIComponent(Array.from(atob(encoded + '='.repeat((4 - encoded.length % 4) % 4)), character => `%${character.charCodeAt(0).toString(16).padStart(2, '0')}`).join('')));
+      return !Number(payload.expiresAt) || Number(payload.expiresAt) <= Math.floor(Date.now() / 1000) + 30;
+    } catch (error) {
+      return true;
+    }
+  }
+
+  function storedToken() {
+    try {
+      const token = localStorage.getItem(storageKey) || '';
+      if (token && tokenExpired(token)) {
+        localStorage.removeItem(storageKey);
+        return '';
+      }
+      return token;
+    } catch (error) {
+      return '';
+    }
+  }
+
+  function storeToken(token) {
+    try {
+      localStorage.setItem(storageKey, token);
+    } catch (error) {
+      // 隐私模式下仍可在当前请求使用新 token。
+    }
+  }
+
+  function clear() {
+    try { localStorage.removeItem(storageKey); } catch (error) { /* noop */ }
+  }
+
+  async function login(apiBaseUrl, suppliedPassphrase = '') {
+    const passphrase = suppliedPassphrase || globalThis.prompt('请输入平台访问口令（本页不会保存口令）');
+    if (!passphrase) throw new Error('已取消访问验证');
+    const response = await fetch(`${apiBaseUrl}/api/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json; charset=utf-8' },
+      body: JSON.stringify({ passphrase })
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok || !payload.token) throw new Error(payload.error || `访问验证失败（${response.status}）`);
+    storeToken(payload.token);
+    return payload.token;
+  }
+
+  async function token(apiBaseUrl) {
+    const existing = storedToken();
+    if (existing) return existing;
+    if (!pending) pending = login(apiBaseUrl).finally(() => { pending = null; });
+    return pending;
+  }
+
+  async function authorizationHeader(apiBaseUrl) {
+    if (isLocalMock(apiBaseUrl)) return {};
+    return { Authorization: `Bearer ${await token(apiBaseUrl)}` };
+  }
+
+  async function validate(apiBaseUrl) {
+    if (!requiresLogin()) return true;
+    const existing = storedToken();
+    if (!existing) return false;
+    const response = await fetch(`${apiBaseUrl}/api/auth/session`, {
+      cache: 'no-store',
+      headers: { Authorization: `Bearer ${existing}` }
+    });
+    if (response.status === 401) {
+      clear();
+      return false;
+    }
+    if (!response.ok) throw new Error('暂时无法验证登录状态');
+    return true;
+  }
+
+  function requiresLogin() {
+    return !['127.0.0.1', 'localhost'].includes(location.hostname);
+  }
+
+  studio.services.accessSession = { authorizationHeader, clear, storedToken, login, validate, requiresLogin };
 })(globalThis.BayerStudio);
 
 
@@ -8295,19 +8415,18 @@
     if (options.cleanPlate) {
       return [
         { role: 'scene', label: `无产品环境底图参考 ${result.sourceItem?.id || result.item.id}`, url: absoluteAssetUrl(result.sourceItem?.image || result.item.image) },
-        ...result.selectedProps.map(prop => ({ role: 'prop', label: `可选环境道具 ${prop.label}`, url: absoluteAssetUrl(prop.image) }))
+        ...result.selectedProps.map(prop => ({ role: 'prop', label: `道具候选池 ${prop.label}`, url: absoluteAssetUrl(prop.image) }))
       ].slice(0, 8);
     }
-    const productReferences = [
-      { role: 'product', label: `唯一产品参考 ${result.productReference.label}`, url: absoluteAssetUrl(result.productReference.image) },
-      { role: 'proportion', label: result.productReference.proportionReference.label, url: absoluteAssetUrl(result.productReference.proportionReference.image) },
-      ...(result.productReference.additionalReferences || []).map(reference => ({ role: reference.kind || 'support', label: reference.label, url: absoluteAssetUrl(reference.image) }))
-    ];
-    if (options.hasSetAnchor) return productReferences.slice(0, 4);
+    const poseReference = { role: 'product', label: `产品姿态参考（只锁角度，忽略颜色） ${result.productReference.label}`, url: absoluteAssetUrl(result.productReference.image) };
+    const colorMaster = { role: 'proportion', label: `${result.productReference.proportionReference.label}（颜色与身份唯一标准）`, url: absoluteAssetUrl(result.productReference.proportionReference.image) };
+    const supportReferences = (result.productReference.additionalReferences || []).map(reference => ({ role: reference.kind || 'support', label: reference.label, url: absoluteAssetUrl(reference.image) }));
+    const productReferences = [poseReference, colorMaster, ...supportReferences];
+    if (options.hasSetAnchor) return [colorMaster, poseReference, ...supportReferences].slice(0, 4);
     return [
       { role: 'scene', label: `场景参考 ${result.item.id}`, url: absoluteAssetUrl(result.item.image) },
       ...productReferences,
-      ...result.selectedProps.map(prop => ({ role: 'prop', label: `道具参考 ${prop.label}`, url: absoluteAssetUrl(prop.image) }))
+      ...result.selectedProps.map(prop => ({ role: 'prop', label: `道具候选池 ${prop.label}`, url: absoluteAssetUrl(prop.image) }))
     ].slice(0, 8);
   }
 
@@ -8461,6 +8580,7 @@
     const cleanPlate = Boolean(options.cleanPlate);
     const references = referencesFor(result, { hasSetAnchor, cleanPlate });
     const requestId = globalThis.crypto?.randomUUID?.() || `generation-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const accessHeaders = await studio.services.accessSession.authorizationHeader(baseUrl);
     const requestBody = JSON.stringify({
       requestId,
       userId: anonymousUserId(),
@@ -8478,7 +8598,7 @@
     try {
       const payload = await studio.services.request.requestJson(`${baseUrl}/api/generate`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json; charset=utf-8' },
+        headers: { 'Content-Type': 'application/json; charset=utf-8', ...accessHeaders },
         body: new Blob([requestBody], { type: 'application/json; charset=utf-8' }),
         timeoutMs: studio.services.request.timeouts.generation,
         signal: options.signal,
@@ -8502,6 +8622,7 @@
     if (!baseUrl) throw new Error('尚未配置生图服务端地址');
     if (!Array.isArray(jobs) || !jobs.length) throw new Error('多轮生图任务为空');
     const requestId = globalThis.crypto?.randomUUID?.() || `conversation-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const accessHeaders = await studio.services.accessSession.authorizationHeader(baseUrl);
     const normalizedJobs = jobs.map(job => {
       const cleanPlate = job.mode === 'plate';
       return {
@@ -8525,7 +8646,7 @@
     try {
       const payload = await studio.services.request.requestJson(`${baseUrl}/api/generate-conversation`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json; charset=utf-8' },
+        headers: { 'Content-Type': 'application/json; charset=utf-8', ...accessHeaders },
         body: new Blob([requestBody], { type: 'application/json; charset=utf-8' }),
         timeoutMs: studio.services.request.timeouts.generation,
         signal: options.signal,
@@ -8590,9 +8711,11 @@
     const base = apiBaseUrl();
     if (!base) throw new Error('尚未配置体验生图服务端地址');
     const requestId = globalThis.crypto?.randomUUID?.() || `experience-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const accessHeaders = await studio.services.accessSession.authorizationHeader(base);
     try {
       return await studio.services.request.requestJson(`${base}${path}`, {
         method: 'POST',
+        headers: accessHeaders,
         body: { ...body, requestId, userId: studio.services.imageGeneration.anonymousUserId() },
         timeoutMs: path.endsWith('/prompt') ? studio.services.request.timeouts.prompt : studio.services.request.timeouts.generation,
         signal: options.signal,
@@ -8629,6 +8752,7 @@
   const previewLongEdge = 1024;
   const maxPendingRecords = 30;
   const memoryCache = new Map();
+  const imageObjectUrls = new Map();
 
   function apiUrl(path) {
     const base = studio.services.sceneAnalysis.reviewApiBaseUrl();
@@ -8687,9 +8811,10 @@
   }
 
   async function post(record) {
+    const headers = await studio.services.accessSession.authorizationHeader(studio.services.sceneAnalysis.reviewApiBaseUrl());
     const response = await fetch(apiUrl('/api/reviews'), {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json; charset=utf-8' },
+      headers: { 'Content-Type': 'application/json; charset=utf-8', ...headers },
       body: JSON.stringify({ ...record, userId: studio.services.imageGeneration.anonymousUserId() })
     });
     const payload = await response.json().catch(() => ({}));
@@ -8720,11 +8845,25 @@
 
   async function list(limit = 30) {
     await syncPending();
-    const response = await fetch(apiUrl(`/api/reviews?limit=${Math.max(1, Math.min(100, limit))}`), { cache: 'no-store' });
+    const headers = await studio.services.accessSession.authorizationHeader(studio.services.sceneAnalysis.reviewApiBaseUrl());
+    const response = await fetch(apiUrl(`/api/reviews?limit=${Math.max(1, Math.min(100, limit))}`), { cache: 'no-store', headers });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(payload.error || `读取历史评审失败（${response.status}）`);
     const combined = [...(payload.reviews || []), ...pending().filter(item => !(payload.reviews || []).some(remote => remote.id === item.id))];
-    return combined.sort((left, right) => String(right.createdAt || '').localeCompare(String(left.createdAt || ''))).slice(0, limit);
+    const selected = combined.sort((left, right) => String(right.createdAt || '').localeCompare(String(left.createdAt || ''))).slice(0, limit);
+    await Promise.all(selected.map(async review => {
+      if (!review.imageUrl || review.previewDataUrl || imageObjectUrls.has(review.id)) return;
+      try {
+        const imageResponse = await fetch(review.imageUrl, { cache: 'no-store', headers });
+        if (!imageResponse.ok) return;
+        const objectUrl = URL.createObjectURL(await imageResponse.blob());
+        imageObjectUrls.set(review.id, objectUrl);
+        review.previewDataUrl = objectUrl;
+      } catch (error) {
+        // 图片暂时不可用时仍展示历史元数据。
+      }
+    }));
+    return selected;
   }
 
   async function qualityMemory(options = {}) {
@@ -8738,7 +8877,8 @@
     if (!options.force && cached && Date.now() - cached.loadedAt < 5 * 60 * 1000) return cached.guide;
     try {
       const query = new URLSearchParams(context);
-      const response = await fetch(apiUrl(`/api/review-memory?${query}`), { cache: 'no-store' });
+      const headers = await studio.services.accessSession.authorizationHeader(studio.services.sceneAnalysis.reviewApiBaseUrl());
+      const response = await fetch(apiUrl(`/api/review-memory?${query}`), { cache: 'no-store', headers });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload.error || `读取质量记忆失败（${response.status}）`);
       const guide = String(payload.guide || '');
@@ -8923,7 +9063,8 @@
 (function registerPromptRules(studio) {
   'use strict';
 
-  const cameraTone = '色调严格锁定为iPhone 17 Pro Max原相机后置镜头风格与5000K中性日光白平衡。灰卡、白墙、白桌面和包装白色区域必须呈中性白或中性灰，不得出现奶油黄、米黄或暖白；产品紫色必须保持真实冷静的标准紫色。禁止复古报纸黄，禁止自动暖化、夕阳光、钨丝灯、暖黄室内灯、暖黄滤镜、金黄高光、棕黄阴影、整体黄偏或橙偏；即使场景参考图本身偏黄，也必须校正回5000K中性日光。';
+  const cameraTone = '色调严格锁定为iPhone 17 Pro Max原相机后置镜头风格与5000K中性日光白平衡。灰卡、白墙、白桌面和包装白色区域必须呈中性白或中性灰，不得出现奶油黄、米黄或暖白。包装盒、药板与药片的所有标准色只以“包装盒、药板与药片 45° 产品标准母版”为准，同一套图禁止出现深紫、蓝紫、亮紫或粉紫之间的色差。禁止复古报纸黄，禁止自动暖化、夕阳光、钨丝灯、暖黄室内灯、暖黄滤镜、金黄高光、棕黄阴影、整体黄偏或橙偏；即使场景参考图本身偏黄，也必须校正回5000K中性日光。';
+  const productColorMaster = '套图产品色彩与身份契约（最高优先级）：每个镜头的“包装盒、药板与药片 45° 产品标准母版”是包装盒、药板和粉色药片颜色、品牌身份、盒型、药板格数、文字与图形版式及三者真实比例的唯一标准；禁止复制它的45°姿态。先逐项读取并保持包装正面的品牌Logo、主标题、信息层级、字块位置、图形轮廓、白紫分区边界与可见侧面排版，不得把文字改写成近似字形、乱码或虚构内容；无法确认的小字保持原有字块结构与清晰边缘，禁止生成新的可读词句。当前镜头的产品姿态参考必须精确控制相机相对俯仰、朝向、旋转角、透视缩短、可见面、承托关系，以及包装盒与药板的间距、前后和重叠关系，但该姿态图的紫色色相、饱和度、亮度与白平衡全部无效。使用状态参考只控制空泡罩和破口。任何辅助图均不得覆盖标准母版的颜色与产品身份。';
   const environment = '场景参考图是摄影结构蓝本，但不是待逐像素复制的底图。相似尺度锁定为约70%保留、约30%变化：必须保留同类居家场景、相机高度与俯仰、画幅裁切、桌面与背景的主要分区、主体所在区域与占比、前中后景关系、原有物件类别与数量级、画面疏密、自然光方向、景深、明暗节奏和生活感；不得擅自更换场景类型、重新组织主背景或大幅移动主体。变化只发生在具体家具和物件的品牌与款式、表面纹理、局部装饰细节及小范围摆放偏移，形成至少两处清晰但不破坏原构图关系的可见差异。禁止直接复制参考图、复用完全相同的具体场景元素或只在原图上替换产品。原图简洁时结果也必须同样简洁，不得凭空添加原图没有且用户未选择的物件；只有用户额外选择的白底道具可以原样复用。画面只出现居家环境，不出现完整人物、户外、门店或药房；洗手台属于允许的居家场景，但不得扩展成完整浴室环境。';
   const reverseEnvironment = environment;
   const noArtwork = '最终画面只保留纯摄影画面与产品包装本身真实文字；禁止额外标题、花字、副标题、广告文案、箭头、贴纸、角标、水印、边框、图文排版和任何后期叠加文字。参考图中的文字和图形标记一律忽略。';
@@ -8946,7 +9087,7 @@
 
   function useStateRule(combo, blisterState) {
     if (!['包装盒＋药板', '药板'].includes(combo) || blisterState !== '正在服用（有空泡罩）') return '';
-    return '药板需要呈现真实服用中的状态：以“正在服用的药板（空泡罩状态）”参考图理解已取出药片后的透明空泡罩、压痕、薄膜反光和自然使用痕迹。不得把它理解为损坏、撕裂、脏污或变形；包装盒、药板尺寸和品牌身份仍以唯一产品母版与45°比例基准为准。';
+    return '药板需要呈现真实服用中的状态，并以泡罩正反面的物理结构正确为最高优先级：清楚显示1至3颗药片已取出，其余泡罩仍保留粉色药片。若镜头主要看见透明塑料泡罩正面，只显示透明空腔、腔壁反光和背后自然透出的局部痕迹，禁止把银色铝箔破口贴在透明泡罩正面；若镜头主要看见铝箔背面，只在背面显示真实穿破的铝箔孔和撕裂边缘；只有轻微斜角确实同时露出两个物理表面时，才可分别在正面看见透明空腔、在背面或翻卷边缘看见对应破口。禁止为同时展示两者而扭曲、翻折或制造双层药板。禁止把空位生成紫色实体凹槽、白色药片、完整未开启泡罩，也禁止整板全部变空。破口不得扩展成药板损坏、脏污或变形。包装盒、药板尺寸、颜色和品牌身份仍以45°产品标准母版为准。';
   }
 
   function tabletSupportRule(tabletSupport) {
@@ -8963,14 +9104,18 @@
     return rules[tabletSupport] || '';
   }
 
-  function subjectRule(combo, referenceHasHand) {
-    if (combo === '包装盒＋药板' && referenceHasHand) return '画面主体严格保持产品参考图中的一个包装盒与一板完整药板。包装盒必须由参考图中的手指或手掌自然、真实地持握支撑，或按参考图姿态真实接触硬质桌面；禁止盒底留白、漂浮、脱离手部悬空或虚构桌面接触。药板必须泡罩面朝上或朝向镜头，并由可见手指、手掌真实托住；如果没有手部直接支撑，则必须完全平放在硬质桌面，形成连续贴近的接触阴影。禁止药板无支撑独立直立、漂浮在包装盒旁边、悬空或仅依靠虚构阴影。不得增加任何未选择的产品形态。';
+  function subjectRule(combo, referenceHasHand, blisterState = '完整药板') {
+    const usedBlister = blisterState === '正在服用（有空泡罩）';
+    const blisterIdentity = usedBlister ? '一板正在服用、仅1至3颗已取出的药板' : '一板完整药板';
+    if (combo === '包装盒＋药板' && referenceHasHand) return `画面主体严格保持产品参考图中的一个包装盒与${blisterIdentity}。包装盒必须由参考图中的手指或手掌自然、真实地持握支撑，或按参考图姿态真实接触硬质桌面；禁止盒底留白、漂浮、脱离手部悬空或虚构桌面接触。药板必须泡罩面朝上或朝向镜头，并由可见手指、手掌真实托住；如果没有手部直接支撑，则必须完全平放在硬质桌面，形成连续贴近的接触阴影。禁止药板无支撑独立直立、漂浮在包装盒旁边、悬空或仅依靠虚构阴影。不得增加任何未选择的产品形态。`;
     if (combo === '包装盒' && referenceHasHand) return '画面主体严格保持产品参考图中的一个包装盒。包装盒必须由参考图中的手指和手掌自然、真实地持握支撑，指尖遮挡、受力关系与握持角度符合现实；禁止盒底留白、漂浮、脱离手部悬空或虚构桌面接触，不强制包装盒落在桌面。不得增加任何未选择的产品形态。';
-    if (combo === '药板' && referenceHasHand) return '画面主体严格保持产品参考图中的一板完整药板。药板必须泡罩面朝上或朝向镜头，并由参考图中的手指、手掌自然持握或托住，指尖接触、受力和薄板姿态符合现实；禁止药板无支撑独立直立、悬空或脱离手部，不强制药板落在桌面。不得增加任何未选择的产品形态。';
+    if (combo === '药板' && referenceHasHand) return `画面主体严格保持产品参考图中的${blisterIdentity}。药板必须泡罩面朝上或朝向镜头，并由参考图中的手指、手掌自然持握或托住，指尖接触、受力和薄板姿态符合现实；禁止药板无支撑独立直立、悬空或脱离手部，不强制药板落在桌面。不得增加任何未选择的产品形态。`;
+    if (combo === '包装盒＋药板' && usedBlister) return `画面主体严格保持产品参考图中的一个包装盒与${blisterIdentity}，二者各自完整、边界清楚且稳定置于同一硬质桌面。药板必须泡罩面朝上平放或以轻微斜角稳定承托，并形成连续贴近的接触阴影；禁止药板独立直立、倚靠包装盒或悬空。包装盒必须以真实接触面落在桌面，接触边缘清楚且有自然阴影；禁止盒底留白、漂浮或悬空。不得增加任何未选择的产品形态。`;
+    if (combo === '药板' && usedBlister) return `画面主体严格保持产品参考图中的${blisterIdentity}。药板必须泡罩面朝上完全平放或以轻微斜角稳定承托在硬质桌面，边缘和底面形成连续贴近的接触阴影；禁止独立直立、倚靠其他物体或悬空。不得增加任何未选择的产品形态。`;
     return comboSubjects[combo];
   }
 
-  studio.prompt.rules = { cameraTone, environment, reverseEnvironment, noArtwork, bed, identity, comboSubjects, subjectRule, useStateRule, tabletSupportRule };
+  studio.prompt.rules = { cameraTone, productColorMaster, environment, reverseEnvironment, noArtwork, bed, identity, comboSubjects, subjectRule, useStateRule, tabletSupportRule };
 })(globalThis.BayerStudio);
 
 
@@ -8983,6 +9128,7 @@
     ['no-yellow', '禁止复古报纸黄', '缺少禁止黄偏规则'],
     ['single-product-reference', '仅使用这一张产品参考图', '缺少单产品参考图锁定'],
     ['identity', '产品参考图是唯一产品外观依据', '缺少产品一致性规则'],
+    ['color-master', '套图产品色彩与身份契约', '缺少45°产品颜色母版锁定'],
     ['reverse-scene', '同风格、同结构尺度但非复制品的倒推式重建', '缺少参考场景倒推分析'],
     ['similarity-scale', '约70%保留、约30%变化', '缺少场景相似尺度'],
     ['scene-originality', '禁止直接复制参考图', '缺少禁止直接复制参考场景规则'],
@@ -9000,7 +9146,8 @@
       const setChecks = [
         ['set-zero-change', '套图正式镜头环境零变化规则', '缺少套图背景零变化规则'],
         ['set-anchor', '所有镜头共用同一张无产品环境母版', '缺少套图统一环境母版锁定'],
-        ['set-no-rebuild', '禁止重新构图或重新生成背景', '缺少套图禁止重建背景规则']
+        ['set-no-rebuild', '禁止重新生成背景', '缺少套图禁止重建背景规则'],
+        ['set-framing', '只允许从同一环境母版改变焦距感', '缺少同环境变焦与主体占比规则']
       ];
       setChecks
         .filter(([, phrase]) => !prompt.includes(phrase))
@@ -9017,7 +9164,7 @@
     if (!expectsHand && !prompt.includes('不出现手、手臂或人物')) {
       issues.push({ code: 'hand-forbidden', message: '静置参考缺少无手规则' });
     }
-    if (!prompt.includes(studio.prompt.rules.subjectRule(context.combo, expectsHand))) {
+    if (!prompt.includes(studio.prompt.rules.subjectRule(context.combo, expectsHand, context.blisterState))) {
       issues.push({ code: 'product-form', message: '缺少所选产品形态锁定' });
     }
     if (context.combo.includes('包装盒') && !prompt.includes('禁止盒底留白、漂浮')) {
@@ -9025,6 +9172,14 @@
     }
     if (context.combo.includes('药板') && !prompt.includes('药板必须泡罩面朝上')) {
       issues.push({ code: 'blister-flat', message: '药板缺少泡罩面朝上平放规则' });
+    }
+    if (context.combo.includes('药板') && context.blisterState === '正在服用（有空泡罩）') {
+      for (const [code, phrase, message] of [
+        ['used-blister-count', '清楚显示1至3颗药片已取出', '缺少已取出药片数量限制'],
+        ['used-blister-cavity', '泡罩正反面的物理结构正确为最高优先级', '缺少泡罩正反面物理规则'],
+        ['used-blister-front', '禁止把银色铝箔破口贴在透明泡罩正面', '缺少正面破口防错规则'],
+        ['used-blister-tablets', '其余泡罩仍保留粉色药片', '缺少其余粉色药片规则']
+      ]) if (!prompt.includes(phrase)) issues.push({ code, message });
     }
     return { valid: issues.length === 0, issues };
   }
@@ -9051,13 +9206,27 @@
     const manicureLock = setContext?.manicureStyle
       ? `同一套图手部身份锁：所有手持镜头必须保持同一人的肤色、手型、手指粗细和美甲；本套固定美甲为“${setContext.manicureStyle}”。产品参考图中的其他美甲只用于理解持握关系，不得覆盖本套固定美甲。`
       : '';
-    if (shouldReverseReference(item)) {
-      return `画面出现自然的手或手臂，借鉴场景参考图的手持展示方式、拍摄距离和生活感，但调整手指弯曲、手腕角度、入画位置或持握姿态，形成清晰可见的新动作；不逐像素复制原手势，不新增手指，不遮挡时光片品牌与关键结构。${manicureLock}`;
-    }
-    if (item.format === '细节展示') {
-      return `画面出现自然的手或手臂，参考原图的掌心或指尖展示方式，${variation.hand}，不遮挡产品主体。`;
-    }
-    return `画面出现自然的手或手臂，${variation.hand}，以放松且符合现实的姿势持握产品。`;
+    const action = item.format === '细节展示'
+      ? `参考原图的掌心或指尖展示方式，${variation.hand}`
+      : `${variation.hand}，以放松且符合现实的姿势持握产品`;
+    const originality = shouldReverseReference(item)
+      ? '借鉴场景参考图的手持展示方式、拍摄距离和生活感，但调整手指弯曲、手腕角度、入画位置或持握姿态，形成清晰可见的新动作；不逐像素复制原手势。'
+      : '';
+    return `画面出现自然的手或手臂。${originality}${action}，不新增手指，不遮挡时光片品牌与关键结构。手与产品必须是明显主体，手指、指甲、关节、皮肤纹理与产品边缘清晰对焦，手腕从画面边缘自然连续入画，不得模糊、融化、断裂或成为背景陪衬。指尖与产品有真实受力、遮挡和贴近的自然阴影。${manicureLock}`;
+  }
+
+  function shotFramingRule(combo, presentation, variantIndex) {
+    const plans = [
+      ['中近景', '主体组合占画面约35%至50%', '保留适量生活环境与真实桌面接触'],
+      ['近景', '主体组合占画面约40%至55%', '通过焦距和裁切接近主体，不移动环境物件'],
+      ['中景', '主体组合占画面约30%至45%', '稍微保留更多环境，但禁止出现大面积无信息空白'],
+      ['细节近景', '主体组合占画面约45%至60%', '对主体确定性裁切，保留背景中可识别的同一环境锚点']
+    ];
+    let [scale, coverage, crop] = plans[variantIndex % plans.length];
+    if (combo === '药板') coverage = '药板占画面约25%至40%';
+    if (combo === '药片' || combo === '药片细节') coverage = '药片与手部或承托面组合占画面约40%至60%';
+    if (presentation === '手持') crop += '；手与产品共同构成前景主体';
+    return `本镜头景别为“${scale}”，${coverage}。${crop}。只允许从同一环境母版改变焦距感、画幅裁切和轻微平移；不得改变环境物件的身份、款式、颜色、数量或相互关系，不得重新生成大角度机位。`;
   }
 
   function orientationRule(productReference, hasHand) {
@@ -9076,16 +9245,18 @@
   }
 
   function selectedPropRule(selectedProps, setInner = false) {
-    if (setInner) return '套图正式镜头环境道具零变化：无产品干净环境母版中已经出现的全部家具、照片、海报、收纳、香水瓶、蜡烛、托盘与生活物件必须保持原像素位置、款式、文字、图案、材质、颜色和数量；不得新增、删除、移动、替换或重绘任何环境道具。';
-    if (!selectedProps.length) return '本次没有选择额外道具：场景物件仅沿用参考图中已有的类别，但必须改变具体款式和摆放位置，不得凭空添加其他道具、容器、食物或未选择的产品形态。';
-    return `所选白底道具图是“外观身份库”，不是构图或摆放模板。可根据参考场景原有疏密，从${selectedProps.map(prop => prop.label).join('、')}的组合图中只采用适量的一部分；凡实际采用的物件，必须完整还原其品牌、包装款式、颜色、材质、比例和设计，不对道具本身进行改造，不得混款。禁止复制白底图中的排列、间距、朝向和统一立放方式，必须按真实用途重新摆放：气垫、粉饼、眼影盘等以稳定底面平放或自然打开平放；软管通常盖子朝下稳定放置或横放；香水、乳液瓶和罐体以底面直立；口红、刷具和笔状物横放或放入合适收纳；任何物件不得靠窄边无支撑站立、悬空、互相穿插，并须具有贴近承托面的自然接触阴影。其他场景物件只沿用原有类别，同时更换具体款式与小范围位置，不得自行添加未选择的产品形态。`;
+    if (setInner) return '套图正式镜头环境道具零变化：无产品干净环境母版中已经出现的全部家具、照片、海报、收纳、香水瓶、蜡烛、托盘与生活物件必须保持同一身份、款式、文字、图案、材质、颜色、数量和空间关系；不得新增、删除、搬动、替换或重新设计任何环境道具。因本镜头指定变焦、裁切或轻微平移而产生的画布坐标变化是唯一例外，但透视和元素间关系必须合理一致。';
+    if (!selectedProps.length) return '道具候选池为空：保留场景参考中已经存在且可识别的家具、墙面、承托面和普通生活物件类别及大致数量，禁止新增参考图中不存在的可移动物件类别、品牌物品或用途不明物体。';
+    const required = Math.min(2, selectedProps.length);
+    return `道具候选池契约（高优先级）：候选仅限${selectedProps.map(prop => prop.label).join('、')}。AI必须根据场景与物理关系从不同候选图中自动选择${required}组适合的道具，无需让全部候选出现，但实际采用数量不得少于${required}组。场景参考中原本已经存在且可识别的普通生活物件属于环境基线，必须保留其类别、数量级、疏密和空间作用；候选池用于替换或补充其中适配位置，禁止新增“环境基线或候选池”之外的物件类别与用途不明物体。采用的道具应形成2至3个有生活逻辑的小组合，例如收纳物与梳妆用品相邻、瓶罐与托盘相邻，而不是把一个道具孤立放成广告主体。道具及原有生活物件共同维持参考图的信息密度，产品预留区约占25%至35%，不得清空大半桌面。候选道具组合占画面不超过约30%，单件不超过约15%；位于侧边、前后景或真实使用区域。禁止单件居中、孤立直立、正面广告式展示、标签刻意朝向镜头，禁止让道具成为最大或最清晰主体。所选白底道具图是外观身份库，不是构图模板；凡实际采用的物件，必须还原其可辨识的款式、颜色、材质、比例和设计，不得用同类替代品或其他品牌替换。禁止复制白底图中的排列，必须按真实用途稳定摆放并形成自然接触阴影：气垫、粉饼和眼影盘以稳定底面平放或自然打开；软管盖子朝下稳定放置或横放；香水、乳液瓶和罐体以底面直立；口红、刷具和笔状物横放或放入合适收纳；任何物件不得无支撑站立、悬空或互相穿插。`;
   }
 
-  function productFormFirewall(combo) {
+  function productFormFirewall(combo, blisterState = '完整药板') {
+    const blisterIdentity = blisterState === '正在服用（有空泡罩）' ? '正在服用且仅1至3颗已取出的药板' : '完整药板';
     const allowed = {
-      '包装盒＋药板': '只允许一个包装盒和一板完整药板',
+      '包装盒＋药板': `只允许一个包装盒和一板${blisterIdentity}`,
       '包装盒': '只允许一个包装盒；禁止药板、散装药片、胶囊、药瓶及任何盛放它们的碟子、托盘或专用容器',
-      '药板': '只允许一板完整药板；禁止包装盒、散装药片、胶囊、药瓶及任何盛放它们的专用容器',
+      '药板': `只允许一板${blisterIdentity}；禁止包装盒、散装药片、胶囊、药瓶及任何盛放它们的专用容器`,
       '药片': '只允许一颗药片；禁止包装盒、药板、药瓶和额外药片',
       '药片细节': '只允许一颗药片；禁止包装盒、药板、药瓶和额外药片；只有用户明确选择的承托容器可以出现'
     };
@@ -9098,18 +9269,21 @@
     const productReference = studio.prompt.productReference(item, variation, variantIndex, combo, sceneFingerprint, { tabletSupport, blisterState });
     const hasHand = referenceHasHand(item);
     const reverseReference = shouldReverseReference(item);
-    const setInner = Boolean(setContext?.cleanPlate || (setContext && setContext.index > 0));
+    const setInner = setContext?.phase === 'shot';
     const fingerprintGuide = sceneFingerprint ? studio.services.sceneAnalysis?.promptGuide(sceneFingerprint) : '';
     const sections = [
       setInner
-        ? '套图正式镜头环境零变化规则（最高优先级）：第一张输入图是本套已经生成的无产品干净环境母版，不是需要重新设计的场景参考图。禁止执行任何环境变化比例或倒推重建背景，禁止改变任何可见背景细节。只在遮罩允许的预留空白承托区生成当前产品、必要手部、真实接触阴影与环境反射；母版中没有任何旧产品需要保留。'
+        ? '套图正式镜头环境零变化规则（最高优先级）：第一张输入图是本套已经生成的无产品干净环境母版，不是需要重新设计的场景参考图。禁止执行任何环境变化比例或倒推重建背景，禁止增删、替换、改色或重新设计任何可见背景细节。只生成当前产品、必要手部、真实接触阴影与环境反射；母版中没有任何旧产品需要保留。'
         : '先在内部核对第一张场景参考图及其场景指纹，不输出分析过程，再进行同风格、同结构尺度但非复制品的倒推式重建。整体视觉关系约70%保留、约30%变化；禁止把“不得复制”理解为重新设计场景，也禁止只在原图上替换产品。',
       setInner ? '' : (fingerprintGuide ? `Gemini场景指纹（优先执行）：${fingerprintGuide}` : '场景指纹暂缺：直接从第一张场景参考图识别并锁定机位、裁切、空间分区、主体占比、物件类别与数量级、光线、景深和画面疏密。'),
       setInner ? '' : (reverseReference ? studio.prompt.rules.reverseEnvironment : studio.prompt.rules.environment),
       `本镜头展示方式为“${presentation || '静置'}”，视觉风格为“${visualStyle || '精致随手PO'}”。展示方式控制产品与手部/承托面的物理关系，视觉风格只控制生活化程度、构图精致度和拍摄质感，二者不得混淆。`,
-      setContext ? `套图一致性锁：本镜头属于同一套图的第${setContext.index + 1}/${setContext.total}张，所有镜头共用同一张无产品环境母版；必须固定相机位置、俯仰、拍摄距离、裁切、透视、背景、家具、物件、材质、光线、白平衡和景深。只在预留产品区域执行当前人工选择的产品组合、真实角度、必要手部与承托关系，禁止重新构图或重新生成背景。` : '',
-      productFormFirewall(combo),
-      studio.prompt.rules.subjectRule(combo, hasHand),
+      setContext ? `套图一致性锁：本镜头属于同一套图的第${setContext.index + 1}/${setContext.total}张，所有镜头共用同一张无产品环境母版。家具、海报、照片、摆件、桌面、墙面、材质、颜色、光线方向和数量必须保持同一环境身份。允许通过焦距感、景别、画幅裁切和轻微平移让主体更突出，但禁止重新生成背景、更换或移动环境元素。` : '',
+      setContext?.packagingTotal > 1 && /包装盒/.test(combo) ? `包装镜头差异化编排：这是本套第${setContext.packagingOrdinal + 1}/${setContext.packagingTotal}个含外包装盒的镜头。它必须使用当前所附的独立真实产品姿态参考，并与本套其他包装镜头形成明显不同的产品朝向、可见面和景别；禁止只做轻微位移、近似重复角度或相同主体大小。差异只作用于产品和画幅裁切，背景元素身份、数量、颜色、光线和空间关系仍须完全一致。` : '',
+      setInner ? shotFramingRule(combo, presentation, variantIndex) : '',
+      studio.prompt.rules.productColorMaster,
+      productFormFirewall(combo, blisterState),
+      studio.prompt.rules.subjectRule(combo, hasHand, blisterState),
       handRule(item, variation, setContext),
       orientationRule(productReference, hasHand),
       studio.prompt.rules.identity[combo],
@@ -9121,11 +9295,11 @@
       studio.prompt.rules.cameraTone,
       qualityMemory ? `历史评审质量记忆（只作为纠错偏好，不得覆盖产品身份和本轮人工选择${setInner ? '；其中任何要求改变背景、家具、摆件、光线或构图的内容一律忽略' : ''}）：${qualityMemory}` : '',
       setInner
-        ? `本镜头与无产品环境母版之间只允许新增当前产品、必要手势、产品接触阴影和环境反射；遮罩外的海报、照片、置物架、瓶罐、蜡烛、托盘、桌面纹理、墙面、光线、景深和噪点必须完全相同。产品与桌面或手部必须形成连续真实的遮挡、接触阴影、反射与景深关系，禁止透明叠加、双重曝光、贴图边缘和旧产品残影。图片比例为${ratio}。`
+        ? `本镜头与无产品环境母版之间只允许新增当前产品、必要手势、产品接触阴影和环境反射；海报、照片、置物架、瓶罐、蜡烛、托盘、桌面纹理和墙面必须保持同一元素身份与空间关系，只随本镜头指定的变焦、裁切或轻微平移合理改变画布坐标。产品与桌面或手部必须形成连续真实的遮挡、接触阴影、反射与景深关系，禁止透明叠加、双重曝光、贴图边缘和旧产品残影。图片比例为${ratio}。`
         : `同批方案保持统一摄影风格、参考图的主要空间结构与所选产品真实角度；差异集中在具体款式、局部细节和小范围位置，不得改变场景类型、相机方向、主体所在区域或画面疏密。图片比例为${ratio}。`
     ].filter(Boolean);
     const prompt = sections.join('\n');
-    const context = { combo, referenceHasHand: hasHand, setInner };
+    const context = { combo, referenceHasHand: hasHand, setInner, blisterState };
     return {
       prompt,
       variation,
@@ -9515,6 +9689,7 @@
       mode: 'single',
       selectedSceneIds: new Set(),
       selectedPropIds: new Set(),
+      autoSelectedPropIds: new Set(),
       filters: { style: '全部', scene: '全部', format: '全部', cameraAngle: '全部', subjectOrientation: '全部', detailTag: '全部', productForm: '全部' },
       propCategory: '全部',
       selectorTab: '场景参考',
@@ -9553,6 +9728,12 @@
     studio.state.generation.failedResults = [];
     studio.state.generation.setAnchorDataUrl = '';
     studio.state.generation.setCleanPlateRequestId = '';
+    studio.state.generation.setPlateResponseId = '';
+    studio.state.generation.setPlateValidation = null;
+    studio.state.generation.setValidationResponseId = '';
+    studio.state.generation.setValidationIndex = -1;
+    studio.state.generation.setPhase = 'idle';
+    studio.state.generation.setId = '';
     studio.state.generation.setMaskDataUrl = '';
     studio.state.generation.setHandAnchorDataUrl = '';
   }
@@ -9579,6 +9760,29 @@
     return studio.state.prompt.propCategory === '全部' ? props : props.filter(prop => prop.category === studio.state.prompt.propCategory);
   }
 
+  function inferredPropCategory(item) {
+    const text = `${item?.title || ''} ${item?.content || ''} ${item?.scene || ''}`;
+    if (/床头|卧室|床边|睡眠/.test(text)) return '床头柜';
+    if (/餐桌|早餐|午餐|晚餐|厨房|饮水|水杯/.test(text)) return '餐桌';
+    if (/书桌|办公|电脑|阅读|学习|笔记本/.test(text)) return '书桌';
+    return '梳妆台';
+  }
+
+  function autoSelectPropForScene(item) {
+    const state = studio.state.prompt;
+    const onlyAutomatic = state.selectedPropIds.size === 0 || [...state.selectedPropIds].every(id => state.autoSelectedPropIds.has(id));
+    if (!onlyAutomatic || !item) return;
+    const props = studio.state.props || studio.data.props;
+    const candidates = props.filter(prop => prop.category === inferredPropCategory(item));
+    if (!candidates.length) return;
+    const seed = [...String(item.id || item.title || '')].reduce((sum, char) => sum + char.charCodeAt(0), 0);
+    const start = seed % candidates.length;
+    const selected = Array.from({ length: Math.min(3, candidates.length) }, (_, offset) => candidates[(start + offset) % candidates.length]);
+    state.selectedPropIds = new Set(selected.map(prop => prop.id));
+    state.autoSelectedPropIds = new Set(selected.map(prop => prop.id));
+    state.propCategory = selected[0].category;
+  }
+
   function savePromptText(key, value) {
     studio.state.prompt.savedTexts[key] = value;
     studio.services.storage.write(promptEditKey, studio.state.prompt.savedTexts);
@@ -9593,7 +9797,7 @@
     const manicureSignature = config.setContext?.manicureStyle || 'no-manicure';
     // Bump whenever hard prompt rules change so an older cached prompt cannot
     // bypass the current validator and reach paid generation.
-    return `creation-v7|${itemId}|${state.mode}|${configurationKey(config)}|${state.ratio}|${propSignature}|${manicureSignature}|${variantIndex}`;
+    return `creation-v10|${itemId}|${state.mode}|${configurationKey(config)}|${state.ratio}|${propSignature}|${manicureSignature}|${variantIndex}`;
   }
 
   function configurations() {
@@ -9607,7 +9811,18 @@
     };
     if (state.mode === 'single') return [{ ...base, variantIndex: 0 }];
     if (state.mode === 'multi') return Array.from({ length: state.count }, (_, variantIndex) => ({ ...base, variantIndex }));
-    return state.setShots.map((shot, index) => ({ ...shot, variantIndex: index, setContext: { index, total: state.setShots.length, manicureStyle: state.setManicureStyle, cleanPlate: true } }));
+    const packagingTotal = state.setShots.filter(shot => /包装盒/.test(shot.combo)).length;
+    let packagingOrdinal = 0;
+    return state.setShots.map((shot, index) => {
+      const hasPackaging = /包装盒/.test(shot.combo);
+      const config = {
+        ...shot,
+        variantIndex: index,
+        setContext: { index, total: state.setShots.length, manicureStyle: state.setManicureStyle, phase: 'shot', packagingTotal, packagingOrdinal: hasPackaging ? packagingOrdinal : -1 }
+      };
+      if (hasPackaging) packagingOrdinal += 1;
+      return config;
+    });
   }
 
   function nextSetManicureStyle() {
@@ -9617,11 +9832,12 @@
     return style;
   }
 
-  function validationFor(text, item, combo, setContext = null) {
+  function validationFor(text, item, combo, blisterState = '', setContext = null) {
     return studio.prompt.validatePrompt(text, {
       combo,
       referenceHasHand: studio.prompt.referenceHasHand(item),
-      setInner: Boolean(setContext?.cleanPlate || (setContext && setContext.index > 0))
+      setInner: setContext?.phase === 'shot',
+      blisterState
     });
   }
 
@@ -9661,7 +9877,10 @@
     }
     clearGeneratedImages();
     const item = studio.state.materials.find(material => material.id === sceneId);
-    const selectedProps = (studio.state.props || studio.data.props).filter(prop => state.selectedPropIds.has(prop.id));
+    autoSelectPropForScene(item);
+    const selectedProps = (studio.state.props || studio.data.props)
+      .filter(prop => state.selectedPropIds.has(prop.id))
+      .map(prop => ({ ...prop, autoMatched: state.autoSelectedPropIds.has(prop.id) }));
     state.analysisRunning = true;
     state.analysisMessage = '正在读取历史质量记忆，并用 Gemini 倒推场景结构…';
     let analysisFailure = '';
@@ -9675,6 +9894,7 @@
     const qualityMemories = await Promise.all(plannedConfigurations.map(config => studio.services.reviewHistory.qualityMemory(config)));
     state.qualityMemory = qualityMemories.some(Boolean) ? '已按各镜头配置读取' : '';
     const sceneFingerprint = studio.services.sceneAnalysis.get(item.id);
+    const usedPackagingReferences = new Set();
     const results = plannedConfigurations.map((config, configIndex) => {
       const generatedItem = {
         ...item,
@@ -9682,7 +9902,7 @@
         format: config.presentation === '手持' ? '手持' : (config.combo === '药片细节' ? '细节展示' : '静置'),
         shot: config.presentation
       };
-      const generated = studio.prompt.generatePrompt({
+      const promptInput = {
         item: generatedItem,
         variantIndex: config.variantIndex,
         combo: config.combo,
@@ -9695,13 +9915,22 @@
         blisterState: config.blisterState,
         setContext: config.setContext || null,
         qualityMemory: qualityMemories[configIndex]
-      });
-      const key = resultKey(item.id, state, config.variantIndex, selectedProps, config);
+      };
+      let resolvedVariantIndex = config.variantIndex;
+      let generated = studio.prompt.generatePrompt(promptInput);
+      if (state.mode === 'set' && /包装盒/.test(config.combo)) {
+        for (let offset = 1; usedPackagingReferences.has(generated.productReference.image) && offset < 12; offset += 1) {
+          resolvedVariantIndex = config.variantIndex + offset;
+          generated = studio.prompt.generatePrompt({ ...promptInput, variantIndex: resolvedVariantIndex });
+        }
+        usedPackagingReferences.add(generated.productReference.image);
+      }
+      const key = resultKey(item.id, state, resolvedVariantIndex, selectedProps, config);
       return {
         key,
         item: generatedItem,
         sourceItem: item,
-        variantIndex: config.variantIndex,
+        variantIndex: resolvedVariantIndex,
         selectedProps,
         sceneFingerprint,
         mode: state.mode,
@@ -9740,7 +9969,7 @@
   function modeSettingsMarkup(state) {
     const base = { combo: state.combo, presentation: state.presentation, visualStyle: state.visualStyle, tabletSupport: state.tabletSupport, blisterState: state.blisterState };
     if (state.mode === 'set') {
-      return `<div class="set-intro"><b>套图干净底图锁</b><span>系统先生成1张不展示的无产品环境底图，再从同一底图生成4个正式镜头；每个镜头的产品组合、展示方式和视觉风格均手动选择。</span></div>
+      return `<div class="set-intro"><b>套图干净底图锁</b><span>系统先生成并单独验收1张无产品环境母版，再从同一母版生成4个正式镜头；母版与正式镜头都会进入最近30张历史，每个镜头的产品组合、展示方式和视觉风格均手动选择。</span></div>
         <div class="shot-grid">${state.setShots.map((shot, index) => `<article class="shot-card"><div class="shot-number">正式镜头 ${index + 1}</div><div class="shot-fields">${commonConfigMarkup(shot, `shot:${index}`)}</div></article>`).join('')}</div>`;
     }
     return `<div class="creation-fields">${commonConfigMarkup(base, 'base')}${state.mode === 'multi' ? `<label>独立图片数量<input id="promptCount" type="number" min="2" max="5" value="${state.count}"></label>` : ''}</div>`;
@@ -9757,9 +9986,9 @@
           { image: result.productReference.image, label: `唯一产品参考 · ${result.productReference.label}` },
           { image: result.productReference.proportionReference.image, label: result.productReference.proportionReference.label },
           ...extraProductReferences,
-          ...result.selectedProps.map(prop => ({ image: prop.image, label: `道具参考 · ${prop.label}` }))
+          ...result.selectedProps.map(prop => ({ image: prop.image, label: `${prop.autoMatched ? '系统自动匹配道具' : '道具候选'} · ${prop.label}` }))
         ];
-        const validation = validationMarkup(validationFor(result.text, result.item, result.config.combo, result.setContext));
+        const validation = validationMarkup(validationFor(result.text, result.item, result.config.combo, result.config.blisterState, result.setContext));
         const title = result.mode === 'set' ? `套图镜头 ${index + 1}` : `方案 ${index + 1}`;
         return `<article class="prompt-result" data-result="${result.key}"><div class="references">${references.map(reference => `<figure><img src="${encodeURI(reference.image)}" alt="${studio.utils.escapeHtml(reference.label)}"><figcaption>${studio.utils.escapeHtml(reference.label)}</figcaption></figure>`).join('')}</div><div><div class="result-meta">${title} · ${studio.utils.escapeHtml(result.config.combo)} · ${studio.utils.escapeHtml(result.config.presentation)} · ${studio.utils.escapeHtml(result.config.visualStyle)}</div><div class="scene-analysis-state ${result.sceneFingerprint ? 'ready' : 'fallback'}">${result.sceneFingerprint ? 'Gemini场景指纹已应用' : '使用70/30基础规则'}</div>${validation}<textarea rows="8">${studio.utils.escapeHtml(result.text)}</textarea><div class="actions"><button class="action" data-expand-prompt>展开全文</button><button class="action" data-copy>复制此条</button><button class="action" data-restore>恢复自动版本</button></div></div></article>`;
       }).join('')}</section>`;
@@ -9775,10 +10004,11 @@
     const shownProps = props.slice(state.propPage * pageSize, (state.propPage + 1) * pageSize);
     const selectedScene = studio.state.materials.find(item => state.selectedSceneIds.has(item.id));
     const selectedProps = (studio.state.props || studio.data.props).filter(item => state.selectedPropIds.has(item.id));
-    const thumbs = [selectedScene, ...selectedProps].filter(Boolean).map(item => `<img src="${encodeURI(item.image)}" title="${studio.utils.escapeHtml(item.title || item.label)}" alt="${studio.utils.escapeHtml(item.id)}">`).join('');
+    const thumbs = [selectedScene, ...selectedProps].filter(Boolean).map(item => `<img src="${encodeURI(item.image)}" title="${studio.utils.escapeHtml(item.title || item.label)}${state.autoSelectedPropIds.has(item.id) ? '（系统自动匹配）' : ''}" alt="${studio.utils.escapeHtml(item.id)}">`).join('');
     const isScene = state.selectorTab === '场景参考';
     const filterSelects = filterAxes.map(([key, label, values]) => `<label>${label}<select data-prompt-filter="${key}">${selectOptions(values, state.filters[key])}</select></label>`).join('');
-    return `<section class="compact-selector"><div class="selector-head"><h3 class="section-title">参考选择 · 场景 ${state.selectedSceneIds.size}/1 · 道具 ${state.selectedPropIds.size}</h3><button class="action" id="toggleReferenceSelector">${state.selectorOpen ? '收起选择器' : '展开选择器'}</button></div><div class="selected-thumb-strip">${thumbs || '<span class="count">尚未选择场景或道具</span>'}</div>${state.selectorOpen ? `<div class="selector-tabs">${['场景参考', '道具'].map(value => `<button class="pill ${state.selectorTab === value ? 'active' : ''}" data-selector-tab="${value}">${value}</button>`).join('')}</div>${isScene ? `<div class="selector-filter-grid">${filterSelects}${state.filters.format === '细节展示' ? `<label>细节类型<select data-prompt-filter="detailTag">${selectOptions(['全部', ...studio.data.classification.detailTags], state.filters.detailTag)}</select></label>` : ''}<label>产品形态<select data-prompt-filter="productForm">${selectOptions(['全部', ...studio.data.classification.productForms], state.filters.productForm)}</select></label></div><div class="compact-reference-grid">${shownMaterials.map(item => `<article class="card selectable ${state.selectedSceneIds.has(item.id) ? 'selected' : ''}" data-scene="${item.id}"><span class="selection-mark">✓</span><img src="${encodeURI(item.image)}" alt="${studio.utils.escapeHtml(item.title)}" loading="lazy"><div class="card-body"><span class="code">${item.id}</span><h2>${studio.utils.escapeHtml(item.title)}</h2></div></article>`).join('')}</div><div class="pagination"><button class="action" data-page="scene-prev" ${state.scenePage === 0 ? 'disabled' : ''}>上一页</button><span>${state.scenePage + 1} / ${scenePages} · ${materials.length} 张</span><button class="action" data-page="scene-next" ${state.scenePage + 1 >= scenePages ? 'disabled' : ''}>下一页</button></div>` : `<div class="selector-filter-grid"><label>道具区域<select id="propCategorySelect">${selectOptions(['全部', ...studio.data.classification.propCategories], state.propCategory)}</select></label></div><div class="compact-reference-grid">${shownProps.map(prop => `<article class="card selectable ${state.selectedPropIds.has(prop.id) ? 'selected' : ''}" data-prop="${prop.id}"><span class="selection-mark">✓</span><img src="${encodeURI(prop.image)}" alt="${studio.utils.escapeHtml(prop.label)}" loading="lazy"><div class="card-body"><h2>${studio.utils.escapeHtml(prop.label)}</h2></div></article>`).join('')}</div><div class="pagination"><button class="action" data-page="prop-prev" ${state.propPage === 0 ? 'disabled' : ''}>上一页</button><span>${state.propPage + 1} / ${propPages} · ${props.length} 张</span><button class="action" data-page="prop-next" ${state.propPage + 1 >= propPages ? 'disabled' : ''}>下一页</button></div>`}` : ''}</section>`;
+    const autoStatus = state.autoSelectedPropIds.size ? ` · 系统自动匹配 ${state.autoSelectedPropIds.size}` : '';
+    return `<section class="compact-selector"><div class="selector-head"><h3 class="section-title">参考选择 · 场景 ${state.selectedSceneIds.size}/1 · 道具候选 ${state.selectedPropIds.size}${autoStatus}</h3><button class="action" id="toggleReferenceSelector">${state.selectorOpen ? '收起选择器' : '展开选择器'}</button></div><div class="selected-thumb-strip">${thumbs || '<span class="count">选择场景后将自动匹配并展示3组道具候选，AI从中自然采用2组</span>'}</div>${state.selectorOpen ? `<div class="selector-tabs">${['场景参考', '道具'].map(value => `<button class="pill ${state.selectorTab === value ? 'active' : ''}" data-selector-tab="${value}">${value}</button>`).join('')}</div>${isScene ? `<div class="selector-filter-grid">${filterSelects}${state.filters.format === '细节展示' ? `<label>细节类型<select data-prompt-filter="detailTag">${selectOptions(['全部', ...studio.data.classification.detailTags], state.filters.detailTag)}</select></label>` : ''}<label>产品形态<select data-prompt-filter="productForm">${selectOptions(['全部', ...studio.data.classification.productForms], state.filters.productForm)}</select></label></div><div class="compact-reference-grid">${shownMaterials.map(item => `<article class="card selectable ${state.selectedSceneIds.has(item.id) ? 'selected' : ''}" data-scene="${item.id}"><span class="selection-mark">✓</span><img src="${encodeURI(item.image)}" alt="${studio.utils.escapeHtml(item.title)}" loading="lazy"><div class="card-body"><span class="code">${item.id}</span><h2>${studio.utils.escapeHtml(item.title)}</h2></div></article>`).join('')}</div><div class="pagination"><button class="action" data-page="scene-prev" ${state.scenePage === 0 ? 'disabled' : ''}>上一页</button><span>${state.scenePage + 1} / ${scenePages} · ${materials.length} 张</span><button class="action" data-page="scene-next" ${state.scenePage + 1 >= scenePages ? 'disabled' : ''}>下一页</button></div>` : `<div class="selector-filter-grid"><label>道具区域<select id="propCategorySelect">${selectOptions(['全部', ...studio.data.classification.propCategories], state.propCategory)}</select></label></div><div class="compact-reference-grid">${shownProps.map(prop => `<article class="card selectable ${state.selectedPropIds.has(prop.id) ? 'selected' : ''}" data-prop="${prop.id}"><span class="selection-mark">✓</span><img src="${encodeURI(prop.image)}" alt="${studio.utils.escapeHtml(prop.label)}" loading="lazy"><div class="card-body"><h2>${studio.utils.escapeHtml(prop.label)}</h2></div></article>`).join('')}</div><div class="pagination"><button class="action" data-page="prop-prev" ${state.propPage === 0 ? 'disabled' : ''}>上一页</button><span>${state.propPage + 1} / ${propPages} · ${props.length} 张</span><button class="action" data-page="prop-next" ${state.propPage + 1 >= propPages ? 'disabled' : ''}>下一页</button></div>`}` : ''}</section>`;
   }
 
   function bindConfigurationControls(container, state) {
@@ -9796,7 +10026,7 @@
     const state = studio.state.prompt;
     const materials = filteredMaterials();
     const props = filteredProps();
-    container.innerHTML = `<header class="page-head"><div class="eyebrow">CREATION WORKSPACE</div><h1>提示词与图片生成</h1><p class="subtitle">在同一个面板完成场景选择、提示词确认、生图和人工评审。重新生成提示词会自动清空上一轮未归档图片。</p></header>
+    container.innerHTML = `<header class="page-head"><div class="eyebrow">CREATION WORKSPACE</div><h1>提示词与图片生成</h1><p class="subtitle">在同一个面板完成场景选择、提示词确认、生图和人工评审。重新生成提示词会清空当前画布；所有已生成图片仍按最近30张规则保留在历史中。</p></header>
       <section class="creation-mode"><b>先选择生成类型</b><div class="mode-buttons">${studio.data.products.generationModes.map(mode => `<button class="mode-card ${state.mode === mode.value ? 'active' : ''}" data-generation-mode="${mode.value}">${mode.label}</button>`).join('')}</div></section>
       <section class="prompt-settings creation-settings">${modeSettingsMarkup(state)}<div class="creation-common"><label>图片比例<select id="promptRatio">${selectOptions(['1:1','3:4','4:3','4:5','9:16','16:9'], state.ratio)}</select></label><div class="similarity-scale"><b>场景相似尺度</b><span>约70%保留结构 · 约30%改变细节</span></div></div></section>
       ${selectorMarkup(state, materials, props)}
@@ -9829,11 +10059,11 @@
     container.querySelectorAll('[data-selector-tab]').forEach(button => button.onclick = () => { state.selectorTab = button.dataset.selectorTab; render(container); });
     container.querySelectorAll('[data-page]').forEach(button => button.onclick = () => { const [kind, direction] = button.dataset.page.split('-'); state[kind + 'Page'] += direction === 'next' ? 1 : -1; render(container); });
     container.querySelectorAll('[data-prompt-filter]').forEach(select => select.onchange = () => { state.filters[select.dataset.promptFilter] = select.value; state.scenePage = 0; if (select.dataset.promptFilter === 'format' && select.value !== '细节展示') state.filters.detailTag = '全部'; render(container); });
-    container.querySelectorAll('[data-scene]').forEach(card => card.onclick = () => { const already = state.selectedSceneIds.has(card.dataset.scene); state.selectedSceneIds.clear(); if (!already) state.selectedSceneIds.add(card.dataset.scene); invalidateResults(); render(container); });
+    container.querySelectorAll('[data-scene]').forEach(card => card.onclick = () => { const already = state.selectedSceneIds.has(card.dataset.scene); state.selectedSceneIds.clear(); if (!already) { state.selectedSceneIds.add(card.dataset.scene); autoSelectPropForScene(studio.state.materials.find(item => item.id === card.dataset.scene)); } invalidateResults(); render(container); });
     const propCategory = container.querySelector('#propCategorySelect');
     if (propCategory) propCategory.onchange = () => { state.propCategory = propCategory.value; state.propPage = 0; render(container); };
-    container.querySelectorAll('[data-prop]').forEach(card => card.onclick = () => { state.selectedPropIds.has(card.dataset.prop) ? state.selectedPropIds.delete(card.dataset.prop) : state.selectedPropIds.add(card.dataset.prop); invalidateResults(); render(container); });
-    container.querySelector('#clearPromptWorkspace').onclick = () => { state.selectedSceneIds.clear(); state.selectedPropIds.clear(); state.results = []; state.analysisMessage = ''; clearGeneratedImages(); render(container); };
+    container.querySelectorAll('[data-prop]').forEach(card => card.onclick = () => { state.autoSelectedPropIds.forEach(id => state.selectedPropIds.delete(id)); state.autoSelectedPropIds.clear(); state.selectedPropIds.has(card.dataset.prop) ? state.selectedPropIds.delete(card.dataset.prop) : state.selectedPropIds.add(card.dataset.prop); invalidateResults(); render(container); });
+    container.querySelector('#clearPromptWorkspace').onclick = () => { state.selectedSceneIds.clear(); state.selectedPropIds.clear(); state.autoSelectedPropIds.clear(); state.results = []; state.analysisMessage = ''; clearGeneratedImages(); render(container); };
     container.querySelector('#buildPrompts').onclick = async () => {
       if (!state.selectedSceneIds.size) return alert('请先选择一张场景参考素材');
       state.analysisRunning = true;
@@ -9897,8 +10127,10 @@
       setAnchorDataUrl: '',
       setCleanPlateRequestId: '',
       setPlateResponseId: '',
+      setPlateValidation: null,
       setValidationResponseId: '',
       setValidationIndex: -1,
+      setId: '',
       setMaskDataUrl: '',
       setHandAnchorDataUrl: '',
       historyWarning: '',
@@ -9915,10 +10147,20 @@
       health.geminiConfigured ? 'Gemini 已配置' : 'Gemini 未配置',
       health.openaiConfigured ? 'GPT Image 已配置' : 'GPT Image 未配置',
       health.quotaConfigured ? '额度存储已配置' : '额度存储未配置',
+      health.atomicQuotaConfigured ? '原子额度已配置' : '原子额度未配置',
+      health.publicAiEnabled ? 'AI 已启用' : 'AI 安全关闭',
+      health.accessControlConfigured ? '口令会话已配置' : '口令会话未配置',
       health.reviewConfigured ? '历史评审已配置' : '历史评审未配置'
     ].filter(Boolean);
-    const ready = health.geminiConfigured && health.openaiConfigured && health.quotaConfigured;
+    const ready = infrastructureReady(health);
     return `<span class="generation-status ${ready ? (health.reviewConfigured ? 'ready' : 'warning') : 'warning'}">${statuses.join(' · ')}</span>`;
+  }
+
+  function infrastructureReady(health) {
+    const aiSafetyReady = health.localGenerationMock || (
+      health.publicAiEnabled && health.accessControlConfigured && health.atomicQuotaConfigured
+    );
+    return Boolean(health.ok && health.geminiConfigured && health.openaiConfigured && health.quotaConfigured && aiSafetyReady);
   }
 
   function stopWaiting(state) {
@@ -9936,7 +10178,7 @@
       const status = container.querySelector('#generationStatus');
       if (!status) return;
       const seconds = Math.max(0, Math.floor((Date.now() - state.waitStartedAt) / 1000));
-      status.textContent = `${state.message} 已等待 ${seconds} 秒（最长约180秒）。`;
+      status.textContent = `${state.message} 当前步骤已等待 ${seconds} 秒（本步骤最长约180秒）。`;
     };
     update();
     state.waitTimer = setInterval(update, 1000);
@@ -9965,10 +10207,10 @@
   function imageMarkup(image, index) {
     const src = imageDataUrl(image);
     const extension = (image.mimeType || '').includes('png') ? 'png' : 'jpg';
-    return `<figure class="generated-card" data-generated-id="${image.id}"><img src="${src}" alt="生成结果 ${index + 1}"><figcaption><div><b>${studio.utils.escapeHtml(image.label || `生成结果 ${index + 1}`)}</b><span>${studio.utils.escapeHtml(image.config?.combo || '')} · ${studio.utils.escapeHtml(image.config?.presentation || '')} · 模型原始输出（未做本地像素混合）</span></div><a class="action" href="${src}" download="bayer-shiguang-${image.id}.${extension}">下载原图</a></figcaption>${reviewMarkup(image)}</figure>`;
+    return `<figure class="generated-card" data-generated-id="${image.id}"><img src="${src}" alt="生成结果 ${index + 1}"><figcaption><div><b>${studio.utils.escapeHtml(image.label || `生成结果 ${index + 1}`)}${image.version > 1 ? ` · v${image.version}` : ''}</b><span>${studio.utils.escapeHtml(image.config?.combo || '')} · ${studio.utils.escapeHtml(image.config?.presentation || '')} · 模型原始输出（未做本地像素混合）</span></div><div><button class="action" type="button" data-regenerate-result="${image.id}">不满意，重新生成此镜头（1张）</button><a class="action" href="${src}" download="bayer-shiguang-${image.id}.${extension}">下载原图</a></div></figcaption>${reviewMarkup(image)}</figure>`;
   }
 
-  function generatedImages(payload, result, resultIndex, state) {
+  function generatedImages(payload, result, resultIndex, state, metadata = {}) {
     return payload.images.map((image, imageIndex) => ({
       ...image,
       id: globalThis.crypto?.randomUUID?.() || `image-${Date.now()}-${resultIndex}-${imageIndex}`,
@@ -9982,7 +10224,10 @@
       requestId: payload.request?.requestId || payload.requestId || '',
       model: payload.model || state.health?.openaiModel || 'gpt-image-2',
       quality: state.quality,
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      setId: metadata.setId || state.setId || '',
+      parentImageId: metadata.parentImageId || '',
+      version: Math.max(1, Number(metadata.version) || 1)
     }));
   }
 
@@ -10003,6 +10248,9 @@
       model: image.model,
       quality: image.quality,
       references: image.references,
+      setId: image.setId || '',
+      parentImageId: image.parentImageId || '',
+      version: image.version || 1,
       createdAt: image.createdAt,
       imageDataUrl: imageDataUrl(image)
     };
@@ -10032,6 +10280,29 @@
     return `<div class="generation-retry">${state.failedResults.map(failure => `<button class="action" type="button" data-retry-generation="${failure.index}">只重试镜头 ${failure.index + 1}</button>`).join('')}<small>失败镜头不会自动重试，避免重复扣费；请确认后手动点击一次。</small></div>`;
   }
 
+  function plateValidationMarkup(state) {
+    const validation = state.setPlateValidation;
+    if (!validation) return '';
+    if (validation.status === 'unavailable') return `<div class="generation-status warning"><b>自动视觉质检未完成</b>：${studio.utils.escapeHtml(validation.summary || '请人工检查环境密度、至少两组道具及自然融合。')} <button class="action" id="approveCleanPlateManually" type="button">人工确认母版合格</button></div>`;
+    const details = (validation.issues || []).join('；') || validation.summary || '未提供具体问题';
+    return `<div class="generation-status ${validation.pass ? 'ready' : 'error'}"><b>${validation.pass ? '自动视觉质检通过' : '自动视觉质检未通过'}</b> · 道具组 ${validation.propGroupsDetected || 0} · ${studio.utils.escapeHtml(validation.pass ? (validation.summary || '环境密度、道具融合和产品预留区符合要求。') : details)}</div>`;
+  }
+
+  function resetSetSession(state, { clearImages = true } = {}) {
+    if (clearImages) state.images = [];
+    state.failedResults = [];
+    state.setAnchorDataUrl = '';
+    state.setCleanPlateRequestId = '';
+    state.setPlateResponseId = '';
+    state.setPlateValidation = null;
+    state.setValidationResponseId = '';
+    state.setValidationIndex = -1;
+    state.setId = '';
+    state.setMaskDataUrl = '';
+    state.setHandAnchorDataUrl = '';
+    state.setPhase = 'idle';
+  }
+
   function render(container, options = {}) {
     const state = studio.state.generation;
     const results = studio.state.prompt.results || [];
@@ -10043,9 +10314,11 @@
     const isSet = results.length > 0 && results.every(result => result.mode === 'set');
     const conversationalSet = isSet && state.setWorkflow === 'conversation';
     const batchLabel = conversationalSet
-      ? (state.setPhase === 'awaiting_validation'
+      ? (state.setPhase === 'complete'
+          ? '本套已完成'
+          : state.setPhase === 'awaiting_validation'
           ? `继续生成剩余 ${Math.max(0, results.length - state.images.length)} 张`
-          : (state.setPhase === 'plate_ready' ? '继续生成手持验证图（1张）' : '先生成母版＋1张手持验证图（共2张）'))
+          : (state.setPhase === 'plate_ready' ? '继续生成手持验证图（1张）' : (state.setPhase === 'plate_rejected' ? '母版未通过，请先重生' : (state.setPhase === 'plate_review_required' ? '请先人工确认母版' : '先生成并验收环境母版（1张）'))))
       : (isSet ? `旧版：生成干净底图＋${results.length}个镜头（共${results.length + 1}张）` : (results.length > 1 ? `按顺序生成全部 ${results.length} 个镜头` : '开始生成图片'));
 
     container.innerHTML = `${title}<section class="generation-panel">
@@ -10053,9 +10326,9 @@
       ${selected ? `<div class="generation-controls"><label>预览提示词<select id="generationResult">${optionsMarkup}</select></label><label>质量<select id="generationQuality"><option value="medium"${state.quality === 'medium' ? ' selected' : ''}>测试 medium</option><option value="high"${state.quality === 'high' ? ' selected' : ''}>成片 high</option></select></label>${isSet ? `<label>套图生成链路<select id="setWorkflow"><option value="conversation"${state.setWorkflow === 'conversation' ? ' selected' : ''}>多轮套图 Beta（推荐）</option><option value="legacy"${state.setWorkflow === 'legacy' ? ' selected' : ''}>旧版遮罩回退</option></select></label>` : ''}</div>
         <div class="generation-references">${references.map(reference => `<figure><img src="${encodeURI(reference.image)}" alt="${studio.utils.escapeHtml(reference.label)}"><figcaption>${studio.utils.escapeHtml(reference.label)}</figcaption></figure>`).join('')}</div>
         <label class="generation-prompt"><b>当前镜头生图提示词</b><textarea id="generationPrompt" rows="10">${studio.utils.escapeHtml(selected.text)}</textarea></label>
-        <div class="generation-submit"><span id="generationStatus">${studio.utils.escapeHtml(state.message || (conversationalSet ? '多轮套图 Beta：先生成无产品母版和1张最难手持验证图，共2张实际图片；确认背景、产品融合、手部自然度和美甲后，才并行生成剩余镜头。' : (isSet ? `旧版回退会生成1张无产品干净底图和${results.length}个正式镜头，共${results.length + 1}张。` : '生成前会自动读取45°产品比例基准。')))}</span><button class="action primary" id="startGeneration" ${state.running ? 'disabled' : ''}>${state.running ? 'GPT 正在生成…' : batchLabel}</button>${state.running ? '<button class="action" id="cancelGeneration" type="button">取消等待</button>' : ''}${failureControls(state)}</div>`
-        : '<div class="generation-empty"><h2>请先生成并确认提示词</h2><p>提示词与生图已合并在当前面板；生成新提示词时上一轮未归档图片会自动清空。</p></div>'}
-      </section>${state.setAnchorDataUrl ? `<details class="generation-panel"><summary>查看本套无产品干净底图（诊断用，不进入历史）</summary><figure class="generated-card"><img src="${state.setAnchorDataUrl}" alt="无产品干净环境底图"><figcaption><div><b>隐藏环境母版</b><span>请求 ${studio.utils.escapeHtml(state.setCleanPlateRequestId || '未知')} · 四个正式镜头均从此图生成</span></div><a class="action" href="${state.setAnchorDataUrl}" download="bayer-shiguang-clean-plate.png">下载底图</a></figcaption></figure></details>` : ''}${state.images.length ? `<section class="generation-results"><div class="history-heading"><div><h2>本轮生成结果</h2><p>以下均为模型原始输出，未做本地像素混合；图片生成后已自动进入最近30张共享历史。</p></div></div><div class="generated-grid">${state.images.map(imageMarkup).join('')}</div></section>` : ''}`;
+        <div class="generation-submit"><span id="generationStatus">${studio.utils.escapeHtml(state.message || (conversationalSet ? '多轮套图 Beta：先单独生成并验收环境母版；确认母版后再生成1张最难手持验证图，最后生成剩余镜头。' : (isSet ? `旧版回退会生成1张无产品干净底图和${results.length}个正式镜头，共${results.length + 1}张。` : '生成前会自动读取45°产品比例基准。')))}</span><button class="action primary" id="startGeneration" ${state.running || (conversationalSet && ['complete', 'plate_rejected', 'plate_review_required'].includes(state.setPhase)) ? 'disabled' : ''}>${state.running ? 'GPT 正在生成…' : batchLabel}</button>${conversationalSet && state.setPhase === 'complete' ? '<button class="action" id="newSetKeepSettings" type="button">新建套图（保留当前设置）</button>' : ''}${state.running ? '<button class="action" id="cancelGeneration" type="button">取消等待</button>' : ''}${failureControls(state)}</div>`
+        : '<div class="generation-empty"><h2>请先生成并确认提示词</h2><p>提示词与生图已合并在当前面板；生成新提示词时当前画布会清空，已生成图片仍保留在最近30张历史中。</p></div>'}
+      </section>${state.setAnchorDataUrl ? `<details class="generation-panel" open><summary>查看并验收本套无产品环境母版</summary>${plateValidationMarkup(state)}<figure class="generated-card"><img src="${state.setAnchorDataUrl}" alt="无产品干净环境底图"><figcaption><div><b>环境母版</b><span>请求 ${studio.utils.escapeHtml(state.setCleanPlateRequestId || '未知')} · 已进入最近30张历史；四个正式镜头只能使用这一版本</span></div><div>${conversationalSet ? `<button class="action" type="button" id="regenerateCleanPlate" ${state.running ? 'disabled' : ''}>不满意，重新生成环境母版（1张）</button>` : ''}<a class="action" href="${state.setAnchorDataUrl}" download="bayer-shiguang-clean-plate.png">下载底图</a></div></figcaption></figure></details>` : ''}${state.images.length ? `<section class="generation-results"><div class="history-heading"><div><h2>本轮生成结果</h2><p>以下均为模型原始输出，未做本地像素混合；图片生成后已自动进入最近30张共享历史。</p></div></div><div class="generated-grid">${state.images.map(imageMarkup).join('')}</div></section>` : ''}`;
 
     startWaiting(state, container);
     const cancelButton = container.querySelector('#cancelGeneration');
@@ -10072,6 +10345,19 @@
       render(container, options);
     };
     if (!selected) return;
+    const newSetButton = container.querySelector('#newSetKeepSettings');
+    if (newSetButton) newSetButton.onclick = () => {
+      resetSetSession(state);
+      state.message = '已新建空白套图；镜头类型、比例、质量、场景和道具候选均已保留，可直接更换参考或生成新母版。';
+      render(container, options);
+    };
+    const manualApprovalButton = container.querySelector('#approveCleanPlateManually');
+    if (manualApprovalButton) manualApprovalButton.onclick = () => {
+      state.setPlateValidation = { ...state.setPlateValidation, status: 'manual', pass: true, summary: '已由用户人工确认母版合格。' };
+      state.setPhase = 'plate_ready';
+      state.message = '已人工确认环境母版；下一步只生成1张手持验证图。';
+      render(container, options);
+    };
     container.querySelector('#generationResult').onchange = event => { state.resultIndex = Number(event.target.value); state.message = ''; render(container, options); };
     container.querySelector('#generationQuality').onchange = event => { state.quality = event.target.value; render(container, options); };
     if (isSet) container.querySelector('#setWorkflow').onchange = event => {
@@ -10082,27 +10368,20 @@
       state.setAnchorDataUrl = '';
       state.setCleanPlateRequestId = '';
       state.setPlateResponseId = '';
+      state.setPlateValidation = null;
       state.setValidationResponseId = '';
       state.setValidationIndex = -1;
+      state.setId = '';
       state.setHandAnchorDataUrl = '';
-      state.message = state.setWorkflow === 'conversation' ? '已切换多轮套图 Beta；第一次只会实际生成2张。' : '已切换旧版遮罩回退链路。';
+      state.message = state.setWorkflow === 'conversation' ? '已切换多轮套图 Beta；第一步只生成1张环境母版，验收后再继续正式镜头。' : '已切换旧版遮罩回退链路。';
       render(container, options);
     };
     container.querySelector('#generationPrompt').oninput = event => {
       selected.text = event.target.value;
-      state.images = [];
-      state.failedResults = [];
-      state.setAnchorDataUrl = '';
-      state.setCleanPlateRequestId = '';
-      state.setPlateResponseId = '';
-      state.setValidationResponseId = '';
-      state.setValidationIndex = -1;
-      state.setPhase = 'idle';
-      state.setMaskDataUrl = '';
-      state.setHandAnchorDataUrl = '';
+      resetSetSession(state);
     };
 
-    async function generateResult(result, index) {
+    async function generateResult(result, index, parentImage = null) {
       const setLock = result.mode === 'set'
         ? await studio.services.imageGeneration.createSetLock(state.setAnchorDataUrl, result)
         : null;
@@ -10116,7 +10395,10 @@
         setHandAnchorDataUrl: result.mode === 'set' && index > 0 && result.config?.presentation === '手持' ? state.setHandAnchorDataUrl : '',
         signal: state.abortController?.signal
       });
-      const generated = generatedImages(payload, result, index, state);
+      const generated = generatedImages(payload, result, index, state, {
+        parentImageId: parentImage?.id || '',
+        version: (parentImage?.version || 0) + 1
+      });
       state.images = state.images.filter(image => image.resultKey !== result.key);
       state.images.push(...generated);
       state.images.sort((left, right) => results.findIndex(resultItem => resultItem.key === left.resultKey) - results.findIndex(resultItem => resultItem.key === right.resultKey));
@@ -10129,8 +10411,21 @@
 
     function cleanPlatePrompt(result) {
       const fingerprint = result.sceneFingerprint ? studio.services.sceneAnalysis.promptGuide(result.sceneFingerprint) : '';
-      const props = result.selectedProps.length ? `可以沿用所选环境道具的外观类别：${result.selectedProps.map(prop => prop.label).join('、')}，但全部放在画面边缘，不得占用产品预留区。` : '';
-      return `生成一张真实居家产品摄影的“无产品干净环境母版”。只参考输入场景的机位、裁切、空间分区、桌面材质、家具密度、5000K中性日光、景深和摄影质感；不得出现任何包装盒、药板、药片、胶囊、药瓶、品牌产品、手、手臂、人物或产品专用容器。彻底移除参考场景中的原产品及其残影，并用连续自然的墙面、桌面或家具纹理补全。画面中央及下部保留宽阔、完整、无遮挡的干净桌面，作为后续产品与手部的统一编辑安全区；海报、置物架、香水瓶、蜡烛、托盘等重要环境物件只放在安全区之外，不能从边缘伸入。保持真实透视、自然阴影、统一曝光和完整高清细节，不添加花字、水印、边框或广告排版。${fingerprint ? `场景结构指纹仅用于环境：${fingerprint}` : ''}${props}图片比例为${studio.state.prompt.ratio}。`;
+      const requiredProps = Math.min(2, result.selectedProps.length);
+      const props = result.selectedProps.length
+        ? `道具候选池仅限：${result.selectedProps.map(prop => prop.label).join('、')}。必须从不同候选图中自然采用${requiredProps}组，组成2至3个有使用逻辑的小组合，无需全部出现。场景参考中原本可识别的普通生活物件是环境基线，保留其类别、数量级、疏密和空间作用；候选道具可替换或补充适配位置，但禁止新增环境基线与候选池以外的物件类别。禁止用同类替代品或其他品牌替换。道具须分布在侧边、前后景、收纳面或托盘等真实使用位置，并形成符合光向的接触阴影、遮挡和尺度关系；禁止单件居中孤立、正面广告式展示或标签刻意朝向镜头。`
+        : '没有额外道具候选时，保留场景参考中已经存在且可识别的普通生活物件类别、数量级与疏密；禁止新增参考图中不存在的物件类别、品牌物品或用途不明物体。';
+      return `生成一张真实居家产品摄影的“产品就绪生活环境母版”，它不是空棚、空桌或极简背景。场景与参考图约70%保留、约30%变化：保留场景类型、机位与俯仰、裁切、空间分区、桌面与背景层次、环境物件数量级、前中后景疏密、5000K中性日光、景深和生活感；同时在具体款式、表面材质或小范围摆放中做出至少两处清晰差异，禁止直接复制参考图。${props}不得出现包装盒、药板、药片、胶囊、药瓶、拜耳产品、手、人物或产品专用容器。彻底移除原产品及残影，用连续自然的环境纹理补全。只需在中央或下部形成约25%至35%的分散可用承托区，禁止为了后续产品清空大半桌面；环境细节密度和层次必须达到普通单张生活方式摄影的水平。保持真实透视、自然阴影、统一曝光和高清细节，不添加花字、水印、边框或广告排版。${fingerprint ? `场景结构指纹仅用于环境基线：${fingerprint}` : ''}图片比例为${studio.state.prompt.ratio}。`;
+    }
+
+    async function archiveCleanPlate(image, result, requestId) {
+      const references = studio.services.imageGeneration.referencesFor(result, { cleanPlate: true });
+      const [record] = generatedImages({ images: [image], requestId, request: { requestId, references } }, result, -1, state);
+      record.label = '环境母版';
+      record.resultKey = `${result.key}:clean-plate`;
+      record.mode = 'set-plate';
+      record.config = { ...result.config, combo: '无产品环境母版', presentation: '环境母版' };
+      await archiveGenerated([record], state);
     }
 
     async function generateCleanPlate(result) {
@@ -10146,6 +10441,7 @@
       state.setAnchorDataUrl = imageDataUrl(image);
       state.setCleanPlateRequestId = payload.request?.requestId || payload.requestId || '';
       state.setMaskDataUrl = '';
+      await archiveCleanPlate(image, result, state.setCleanPlateRequestId);
       return 1;
     }
 
@@ -10166,7 +10462,7 @@
           images: [entry.image],
           requestId: payload.requestId,
           request: { requestId: payload.requestId, references }
-        }, result, index, state)[0];
+        }, result, index, state, requested.metadata || {})[0];
         generated.responseId = entry.responseId || '';
         generated.responsesModel = entry.responsesModel || '';
         return generated;
@@ -10186,6 +10482,21 @@
       state.setCleanPlateRequestId = payload.requestId || '';
       state.setPlateResponseId = entry.responseId || '';
       if (!state.setPlateResponseId) throw new Error('多轮母版缺少对话响应编号，已停止正式镜头');
+      await archiveCleanPlate(entry.image, result, state.setCleanPlateRequestId);
+      state.message = '环境母版已生成并进入历史，正在执行零生图额度的视觉质检…';
+      render(container, options);
+      try {
+        state.setPlateValidation = await studio.services.sceneAnalysis.validateCleanPlate({
+          imageDataUrl: state.setAnchorDataUrl,
+          sourceItem: result.sourceItem || result.item,
+          selectedProps: result.selectedProps,
+          signal: state.abortController?.signal
+        });
+        state.setPhase = state.setPlateValidation.pass ? 'plate_ready' : 'plate_rejected';
+      } catch (error) {
+        state.setPlateValidation = { status: 'unavailable', pass: false, issues: [], summary: error.message };
+        state.setPhase = 'plate_review_required';
+      }
     }
 
     async function generateConversationalValidation() {
@@ -10235,16 +10546,95 @@
       return { completed: generated.length, failures };
     }
 
+    async function generateConversationalSingle(index, parentImage = null) {
+      const result = results[index];
+      if (!result || !state.setAnchorDataUrl || !state.setPlateResponseId) throw new Error('套图母版或对话状态已丢失，不能单独重生');
+      const handHeld = result.config?.presentation === '手持';
+      const jobs = [{
+        result,
+        mode: 'shot',
+        previousResponseId: handHeld ? (state.setValidationResponseId || state.setPlateResponseId) : state.setPlateResponseId,
+        handAnchorDataUrl: handHeld ? state.setHandAnchorDataUrl : '',
+        metadata: {
+          parentImageId: parentImage?.id || '',
+          version: (parentImage?.version || 0) + 1
+        }
+      }];
+      const payload = await studio.services.imageGeneration.generateConversationJobs(jobs, {
+        quality: state.quality,
+        ratio: studio.state.prompt.ratio,
+        setAnchorDataUrl: state.setAnchorDataUrl,
+        signal: state.abortController?.signal
+      });
+      const generated = conversationalImages(payload, jobs);
+      if (!generated.length) throw new Error(payload.failures?.[0]?.error || '模型未返回重生图片');
+      const image = generated[0];
+      state.images = state.images.filter(existing => existing.resultKey !== result.key);
+      state.images.push(image);
+      state.images.sort((left, right) => results.findIndex(candidate => candidate.key === left.resultKey) - results.findIndex(candidate => candidate.key === right.resultKey));
+      if (handHeld && index === state.setValidationIndex) {
+        state.setValidationResponseId = image.responseId || state.setValidationResponseId;
+        state.setHandAnchorDataUrl = imageDataUrl(image);
+      }
+      await archiveGenerated(generated, state);
+      return image;
+    }
+
     function generationFailure(error, index) {
       const request = error.requestId ? ` [请求 ${error.requestId}]` : '';
       return { index, message: `镜头${index + 1}：${error.message}${request}`, code: error.code || '' };
     }
 
+    const regeneratePlateButton = container.querySelector('#regenerateCleanPlate');
+    if (regeneratePlateButton) regeneratePlateButton.onclick = async () => {
+      if (!globalThis.confirm('本次只重新生成1张环境母版并消耗1张额度。成功后当前套图镜头会从页面清空，但旧图仍保留在最近30张历史；不会自动生成正式镜头。继续吗？')) return;
+      state.message = '正在执行环境母版重生前的连通性与版本检查…';
+      state.health = await studio.services.sceneAnalysis.health();
+      const ready = infrastructureReady(state.health) && state.health.workerVersionCompatible && state.health.features?.conversationalSetBeta;
+      if (!ready) {
+        state.message = state.health.error || '测试 Worker 尚未通过母版重生检查；本次没有提交付费请求。';
+        return render(container, options);
+      }
+      const snapshot = {
+        setId: state.setId,
+        setAnchorDataUrl: state.setAnchorDataUrl,
+        setCleanPlateRequestId: state.setCleanPlateRequestId,
+        setPlateResponseId: state.setPlateResponseId,
+        setPlateValidation: state.setPlateValidation,
+        setPhase: state.setPhase,
+        images: state.images
+      };
+      state.running = true;
+      state.abortController = new AbortController();
+      state.waitStartedAt = Date.now();
+      state.setId = globalThis.crypto?.randomUUID?.() || `set-${Date.now()}`;
+      state.message = '正在重新生成环境母版（实际生图1张）；成功前保留当前母版和镜头…';
+      render(container, options);
+      try {
+        await generateConversationalPlate();
+        state.images = [];
+        state.failedResults = [];
+        state.setValidationResponseId = '';
+        state.setValidationIndex = -1;
+        state.setHandAnchorDataUrl = '';
+        state.setMaskDataUrl = '';
+        state.message = state.setPhase === 'plate_ready' ? '新环境母版已生成并通过自动视觉质检。请人工验收后再生成1张手持验证图。' : (state.setPhase === 'plate_rejected' ? '新母版已保留到历史，但自动质检未通过；正式镜头已阻断，请只重生母版。' : '新母版已保留到历史；自动质检不可用，请人工确认后再继续。');
+      } catch (error) {
+        Object.assign(state, snapshot);
+        state.message = `${error.message}${error.requestId ? ` [请求 ${error.requestId}]` : ''}；旧母版和当前镜头已保留，系统没有自动重试。`;
+      } finally {
+        state.running = false;
+        stopWaiting(state);
+        render(container, options);
+      }
+    };
+
     container.querySelector('#startGeneration').onclick = async () => {
       const invalidPrompts = results.filter(result => !studio.prompt.validatePrompt(result.text, {
         combo: result.config.combo,
         referenceHasHand: studio.prompt.referenceHasHand(result.item),
-        setInner: Boolean(result.setContext?.cleanPlate || (result.setContext && result.setContext.index > 0))
+        setInner: result.setContext?.phase === 'shot',
+        blisterState: result.config.blisterState
       }).valid);
       if (invalidPrompts.length) {
         state.message = `有 ${invalidPrompts.length} 条提示词未通过当前硬规则校验；本次没有连接模型，也没有产生费用。请恢复自动版本或重新生成提示词。`;
@@ -10254,7 +10644,7 @@
       state.message = '正在执行生图前连通性与版本检查…';
       state.health = await studio.services.sceneAnalysis.health();
       const setWorkerReady = !isSet || (state.health.workerVersionCompatible && (state.setWorkflow === 'conversation' ? state.health.features?.conversationalSetBeta : state.health.features?.cleanPlateSet));
-      const ready = state.health.ok && state.health.geminiConfigured && state.health.openaiConfigured && state.health.quotaConfigured && setWorkerReady;
+      const ready = infrastructureReady(state.health) && setWorkerReady;
       if (!ready) {
         state.message = state.health.error || (!setWorkerReady ? '测试 Worker 尚未启用当前套图链路；为避免浪费额度，本次没有提交任何生图请求。' : '生图服务尚未就绪；检测通过前不会提交付费请求。');
         render(container, options);
@@ -10301,24 +10691,14 @@
           }
           return;
         }
-        state.images = [];
-        state.setAnchorDataUrl = '';
-        state.setCleanPlateRequestId = '';
-        state.setPlateResponseId = '';
-        state.setValidationResponseId = '';
-        state.setValidationIndex = -1;
-        state.setHandAnchorDataUrl = '';
+        resetSetSession(state);
+        state.setId = globalThis.crypto?.randomUUID?.() || `set-${Date.now()}`;
         state.setPhase = 'building_plate';
-        state.message = '多轮套图 Beta 第1步/2：正在生成唯一无产品环境母版（实际生图1张）…';
+        state.message = '正在生成唯一无产品环境母版（实际生图1张）；完成后先停下等待验收…';
         render(container, options);
         try {
           await generateConversationalPlate();
-          state.setPhase = 'building_validation';
-          state.message = '多轮套图 Beta 第2步/2：正在同一对话中生成最难的手持验证图（实际生图1张）…';
-          render(container, options);
-          await generateConversationalValidation();
-          state.setPhase = 'awaiting_validation';
-          state.message = '验证阶段完成，本次共生成2张（母版＋1张手持验证图）。请先检查背景细节、产品融合、手部自然度和美甲；满意后再点击生成剩余3张。';
+          state.message = state.setPhase === 'plate_ready' ? '环境母版已生成、进入历史并通过自动视觉质检。请人工检查后再生成手持验证图。' : (state.setPhase === 'plate_rejected' ? '母版已进入历史但自动质检未通过；已阻断正式镜头，请只重生母版。' : '母版已进入历史；自动质检不可用，请人工确认后再继续。');
         } catch (error) {
           state.setPhase = state.setPlateResponseId ? 'plate_ready' : 'idle';
           state.message = `${error.message}${error.requestId ? ` [请求 ${error.requestId}]` : ''}；已停止后续付费请求且没有自动重试。`;
@@ -10333,6 +10713,7 @@
       state.abortController = new AbortController();
       state.waitStartedAt = Date.now();
       state.images = [];
+      state.setId = isSet ? (globalThis.crypto?.randomUUID?.() || `set-${Date.now()}`) : '';
       state.failedResults = [];
       state.setAnchorDataUrl = '';
       state.setCleanPlateRequestId = '';
@@ -10391,13 +10772,60 @@
       state.message = `正在只重试镜头 ${index + 1}…`;
       render(container, options);
       try {
-        await generateResult(result, index);
+        if (conversationalSet) await generateConversationalSingle(index);
+        else await generateResult(result, index);
         state.failedResults = state.failedResults.filter(failure => failure.index !== index);
         state.message = `镜头 ${index + 1} 已生成；其他已成功镜头没有重复提交。`;
       } catch (error) {
         const failure = generationFailure(error, index);
         state.failedResults = [...state.failedResults.filter(item => item.index !== index), failure];
         state.message = failure.message;
+      } finally {
+        state.running = false;
+        stopWaiting(state);
+        render(container, options);
+      }
+    });
+
+    container.querySelectorAll('[data-regenerate-result]').forEach(button => button.onclick = async () => {
+      const parentImage = state.images.find(image => image.id === button.dataset.regenerateResult);
+      const index = results.findIndex(result => result.key === parentImage?.resultKey);
+      const result = results[index];
+      if (!parentImage || !result || state.running) return;
+      if (!globalThis.confirm('本次只会重新生成该镜头1张并消耗1张额度。其他3张不会重生，旧图与新图都会进入最近30张历史。继续吗？')) return;
+      state.message = '正在执行单张重生前的连通性与版本检查…';
+      const validation = studio.prompt.validatePrompt(result.text, {
+        combo: result.config.combo,
+        referenceHasHand: studio.prompt.referenceHasHand(result.item),
+        setInner: result.setContext?.phase === 'shot',
+        blisterState: result.config.blisterState
+      });
+      if (!validation.valid) {
+        state.message = '该镜头提示词已不符合当前硬规则；本次没有提交付费生图。';
+        return render(container, options);
+      }
+      state.health = await studio.services.sceneAnalysis.health();
+      const setReady = result.mode !== 'set' || (state.health.workerVersionCompatible && (conversationalSet ? state.health.features?.singleShotRegeneration : state.health.features?.cleanPlateSet));
+      const ready = infrastructureReady(state.health) && setReady;
+      if (!ready) {
+        state.message = state.health.error || '当前服务版本或配置未通过；本次没有提交付费生图。';
+        return render(container, options);
+      }
+      if (result.mode === 'set' && !state.setAnchorDataUrl) {
+        state.message = '无产品环境母版已丢失，不能单独重生该镜头。';
+        return render(container, options);
+      }
+      state.running = true;
+      state.abortController = new AbortController();
+      state.waitStartedAt = Date.now();
+      state.message = `正在只重新生成镜头 ${index + 1}；其他镜头不会提交…`;
+      render(container, options);
+      try {
+        if (conversationalSet) await generateConversationalSingle(index, parentImage);
+        else await generateResult(result, index, parentImage);
+        state.message = `镜头 ${index + 1} 已替换为新版；其他镜头未重生，新旧两版均已进入最近30张历史。`;
+      } catch (error) {
+        state.message = `${error.message}${error.requestId ? ` [请求 ${error.requestId}]` : ''}；旧图仍保留，系统没有自动重试。`;
       } finally {
         state.running = false;
         stopWaiting(state);
@@ -10445,7 +10873,6 @@
   }
 
   function reviewImage(review) {
-    if (review.imageUrl) return review.imageUrl;
     if (review.previewDataUrl) return review.previewDataUrl;
     if (review.imageDataUrl) return review.imageDataUrl;
     return '';
@@ -10666,8 +11093,7 @@
   studio.state.currentView = 'library';
 
   const app = document.querySelector('#app');
-  app.innerHTML = `<div class="shell"><aside class="sidebar"><div class="brand"><small>BAYER VISUAL STUDIO</small>拜耳时光片<br>图片生成平台</div><nav class="nav">${views.map(([key, step, label]) => `<button data-view="${key}"><span class="step">${step}</span>${label}</button>`).join('')}</nav></aside><main class="content" id="view"></main></div>`;
-  const view = document.querySelector('#view');
+  let view = null;
 
   function render() {
     app.querySelectorAll('[data-view]').forEach(button => button.classList.toggle('active', button.dataset.view === studio.state.currentView));
@@ -10675,9 +11101,56 @@
     window.scrollTo({ top: 0, behavior: 'auto' });
   }
 
-  app.querySelectorAll('[data-view]').forEach(button => button.onclick = () => {
-    studio.state.currentView = button.dataset.view;
+  function renderShell() {
+    app.innerHTML = `<div class="shell"><aside class="sidebar"><div class="brand"><small>BAYER VISUAL STUDIO</small>拜耳时光片<br>图片生成平台</div><nav class="nav">${views.map(([key, step, label]) => `<button data-view="${key}"><span class="step">${step}</span>${label}</button>`).join('')}</nav>${studio.services.accessSession.requiresLogin() ? '<button class="session-logout" id="sessionLogout" type="button">退出登录</button>' : ''}</aside><main class="content" id="view"></main></div>`;
+    view = app.querySelector('#view');
+    app.querySelectorAll('[data-view]').forEach(button => button.onclick = () => {
+      studio.state.currentView = button.dataset.view;
+      render();
+    });
+    const logout = app.querySelector('#sessionLogout');
+    if (logout) logout.onclick = () => {
+      studio.services.accessSession.clear();
+      renderLogin();
+    };
     render();
-  });
-  render();
+  }
+
+  function renderLogin(message = '') {
+    app.innerHTML = `<main class="login-page"><form class="login-card" id="accessLogin"><div class="eyebrow">PRIVATE STUDIO</div><h1>进入拜耳时光片平台</h1><p>请输入团队访问口令。登录后可生图、评分并查看全员共享的最近 30 张历史。</p><label for="accessPassphrase">平台访问口令</label><input id="accessPassphrase" name="passphrase" type="password" autocomplete="current-password" required autofocus><button class="action primary" type="submit">登录并记住此设备 7 天</button><div class="login-message" aria-live="polite">${studio.utils.escapeHtml(message)}</div><small>原始口令不会保存在浏览器中；公共或共享设备使用后请退出登录。</small></form></main>`;
+    const form = app.querySelector('#accessLogin');
+    form.onsubmit = async event => {
+      event.preventDefault();
+      const button = form.querySelector('button');
+      const messageBox = form.querySelector('.login-message');
+      button.disabled = true;
+      button.textContent = '验证中…';
+      messageBox.textContent = '';
+      try {
+        await studio.services.accessSession.login(studio.services.sceneAnalysis.apiBaseUrl(), form.passphrase.value);
+        form.passphrase.value = '';
+        renderShell();
+      } catch (error) {
+        form.passphrase.value = '';
+        messageBox.textContent = error.message;
+        button.disabled = false;
+        button.textContent = '登录并记住此设备 7 天';
+        form.passphrase.focus();
+      }
+    };
+  }
+
+  async function start() {
+    if (!studio.services.accessSession.requiresLogin()) return renderShell();
+    if (!studio.services.accessSession.storedToken()) return renderLogin();
+    app.innerHTML = '<main class="login-page"><div class="login-card"><div class="eyebrow">PRIVATE STUDIO</div><h1>正在验证登录状态…</h1></div></main>';
+    try {
+      if (await studio.services.accessSession.validate(studio.services.sceneAnalysis.apiBaseUrl())) renderShell();
+      else renderLogin('登录已过期或平台口令已更新，请重新登录。');
+    } catch (error) {
+      renderLogin(error.message);
+    }
+  }
+
+  start();
 })(globalThis.BayerStudio);
