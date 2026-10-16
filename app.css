@@ -314,6 +314,25 @@ textarea { width: 100%; min-height: 180px; resize: vertical; padding: 14px; bord
 .history-score { width: fit-content; padding: 5px 8px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font-weight: 850; }
 .history-card details p { max-height: 180px; overflow: auto; white-space: pre-wrap; }
 .experience-panel, .experience-result { margin-top: 24px; padding: 24px; border: 1px solid var(--line); border-radius: 16px; background: rgba(255,255,255,.72); }
+.creation-task-switcher { display: grid; gap: 14px; margin-top: 24px; padding: 18px; border: 1px solid var(--line); border-radius: 16px; background: rgba(255,255,255,.66); }
+.creation-task-switcher > div:first-child { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.creation-task-switcher > div:first-child span { color: var(--muted); font-size: 12px; }
+.creation-task-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.creation-task { position: relative; display: grid; gap: 5px; min-height: 86px; padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: #fff; color: var(--ink); text-align: left; cursor: pointer; }
+.creation-task span { color: var(--muted); font-size: 12px; line-height: 1.45; }
+.creation-task em { position: absolute; top: 9px; right: 9px; padding: 3px 7px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font-size: 10px; font-style: normal; font-weight: 800; }
+.creation-task.active { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); background: var(--accent-soft); }
+.experience-panel.streamlined { display: grid; gap: 18px; max-width: 940px; }
+.experience-primary-upload { max-width: 560px; }
+.experience-simple-fields { display: grid; grid-template-columns: minmax(0, 1fr) 150px; gap: 14px; align-items: start; }
+.experience-simple-fields label { display: grid; gap: 8px; }
+.experience-simple-fields textarea { min-height: 86px; }
+.experience-fixed-ratio { min-height: 48px; display: flex; align-items: center; padding: 0 16px; border: 1px solid var(--line); border-radius: 14px; background: #fff; font-weight: 700; }
+.experience-optional-upload { max-width: 420px; }
+.history-sync-actions { display: flex; align-items: center; gap: 10px; }
+.history-sync { font-size: 12px; font-weight: 800; }
+.history-sync.synced { color: #24734a; }
+.history-sync.pending { color: #9b5c12; }
 .experience-note, .experience-actions, .experience-submit { display: flex; align-items: center; justify-content: space-between; gap: 16px; color: var(--muted); font-size: 12px; }
 .experience-note b { color: var(--ink); white-space: nowrap; }
 .experience-upload-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin: 20px 0; }
@@ -382,7 +401,7 @@ textarea { width: 100%; min-height: 180px; resize: vertical; padding: 14px; bord
   .generation-health, .generation-submit { align-items: stretch; flex-direction: column; }
   .mode-buttons, .shot-grid { grid-template-columns: 1fr; }
   .set-intro, .history-summary { align-items: stretch; flex-direction: column; }
-  .experience-upload-grid, .experience-result-layout { grid-template-columns: 1fr; }
+  .experience-upload-grid, .experience-result-layout, .creation-task-grid, .experience-simple-fields { grid-template-columns: 1fr; }
   .experience-note, .experience-actions, .experience-submit { align-items: stretch; flex-direction: column; }
   .history-summary .action { margin-left: 0; }
   .onboarding-grid, .source-mode .mode-buttons { grid-template-columns: 1fr; }

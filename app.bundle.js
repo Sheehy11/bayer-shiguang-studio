@@ -7972,6 +7972,1761 @@
 })(globalThis.BayerStudio);
 
 
+(function registerSceneBatchMaterials(studio) {
+  'use strict';
+  studio.data.materials.push(...[
+  {
+    "id": "SCENE108-DINING-01",
+    "title": "餐桌背景 1",
+    "style": "素人随手PO",
+    "scene": "背景",
+    "format": "静置",
+    "shot": "静置",
+    "content": "背景",
+    "deleted": false,
+    "image": "public/scene-batches/108/餐厅/01_餐厅_全景_平视_素人_带产品.jpg",
+    "detailTags": [],
+    "productForms": [
+      "包装盒",
+      "药板",
+      "药片"
+    ],
+    "cameraAngle": "平视",
+    "subjectOrientation": "不限"
+  },
+  {
+    "id": "SCENE108-DINING-02",
+    "title": "餐桌背景 2",
+    "style": "素人随手PO",
+    "scene": "背景",
+    "format": "静置",
+    "shot": "静置",
+    "content": "背景",
+    "deleted": false,
+    "image": "public/scene-batches/108/餐厅/02_餐厅_近景_俯视_素人_带产品.jpg",
+    "detailTags": [],
+    "productForms": [
+      "包装盒",
+      "药板",
+      "药片"
+    ],
+    "cameraAngle": "高位俯拍",
+    "subjectOrientation": "不限"
+  },
+  {
+    "id": "SCENE108-DINING-03",
+    "title": "餐桌背景 3",
+    "style": "精致随手PO",
+    "scene": "背景",
+    "format": "静置",
+    "shot": "静置",
+    "content": "背景",
+    "deleted": false,
+    "image": "public/scene-batches/108/餐厅/03_餐厅_全景_平视_精致_纯环境.jpg",
+    "detailTags": [],
+    "productForms": [
+      "包装盒",
+      "药板",
+      "药片"
+    ],
+    "cameraAngle": "平视",
+    "subjectOrientation": "不限"
+  },
+  {
+    "id": "SCENE108-DINING-04",
+    "title": "卧室背景 1",
+    "style": "精致随手PO",
+    "scene": "背景",
+    "format": "静置",
+    "shot": "静置",
+    "content": "背景",
+    "deleted": false,
+    "image": "public/scene-batches/108/餐厅/04_餐厅_近景_平视_精致_纯环境.jpg",
+    "detailTags": [],
+    "productForms": [
+      "包装盒",
+      "药板",
+      "药片"
+    ],
+    "cameraAngle": "平视",
+    "subjectOrientation": "不限"
+  },
+  {
+    "id": "SCENE108-DINING-05",
+    "title": "餐桌背景 4",
+    "style": "精致随手PO",
+    "scene": "背景",
+    "format": "静置",
+    "shot": "静置",
+    "content": "背景",
+    "deleted": false,
+    "image": "public/scene-batches/108/餐厅/05_餐厅_全景_平视_精致_纯环境.jpg",
+    "detailTags": [],
+    "productForms": [
+      "包装盒",
+      "药板",
+      "药片"
+    ],
+    "cameraAngle": "平视",
+    "subjectOrientation": "不限"
+  },
+  {
+    "id": "SCENE108-DINING-06",
+    "title": "餐桌背景 5",
+    "style": "精致随手PO",
+    "scene": "背景",
+    "format": "静置",
+    "shot": "静置",
+    "content": "背景",
+    "deleted": false,
+    "image": "public/scene-batches/108/餐厅/06_餐厅_全景_平视_精致_纯环境.jpg",
+    "detailTags": [],
+    "productForms": [
+      "包装盒",
+      "药板",
+      "药片"
+    ],
+    "cameraAngle": "平视",
+    "subjectOrientation": "不限"
+  },
+  {
+    "id": "SCENE108-DINING-07",
+    "title": "餐桌背景 6",
+    "style": "精致随手PO",
+    "scene": "背景",
+    "format": "静置",
+    "shot": "静置",
+    "content": "背景",
+    "deleted": false,
+    "image": "public/scene-batches/108/餐厅/07_餐厅_全景_平视_精致_纯环境.jpg",
+    "detailTags": [],
+    "productForms": [
+      "包装盒",
+      "药板",
+      "药片"
+    ],
+    "cameraAngle": "平视",
+    "subjectOrientation": "不限"
+  },
+  {
+    "id": "SCENE108-LIVING-01",
+    "title": "客厅背景 1",
+    "style": "精致随手PO",
+    "scene": "背景",
+    "format": "静置",
+    "shot": "静置",
+    "content": "背景",
+    "deleted": false,
+    "image": "public/scene-batches/108/客厅/01_客厅_全景_平视_精致_纯环境.jpg",
+    "detailTags": [],
+    "productForms": [
+      "包装盒",
+      "药板",
+      "药片"
+    ],
+    "cameraAngle": "平视",
+    "subjectOrientation": "不限"
+  },
+  {
+    "id": "SCENE108-LIVING-02",
+    "title": "客厅背景 2",
+    "style": "精致随手PO",
+    "scene": "背景",
+    "format": "静置",
+    "shot": "静置",
+    "content": "背景",
+    "deleted": false,
+    "image": "public/scene-batches/108/客厅/02_客厅_近景_平视_精致_纯环境.jpg",
+    "detailTags": [],
+    "productForms": [
+      "包装盒",
+      "药板",
+      "药片"
+    ],
+    "cameraAngle": "平视",
+    "subjectOrientation": "不限"
+  },
+  {
+    "id": "SCENE108-LIVING-03",
+    "title": "客厅背景 3",
+    "style": "精致随手PO",
+    "scene": "背景",
+    "format": "静置",
+    "shot": "静置",
+    "content": "背景",
+    "deleted": false,
+    "image": "public/scene-batches/108/客厅/03_客厅_近景_平视_精致_带产品.jpg",
+    "detailTags": [],
+    "productForms": [
+      "包装盒",
+      "药板",
+      "药片"
+    ],
+    "cameraAngle": "平视",
+    "subjectOrientation": "不限"
+  },
+  {
+    "id": "SCENE108-LIVING-04",
+    "title": "客厅背景 4",
+    "style": "精致随手PO",
+    "scene": "背景",
+    "format": "静置",
+    "shot": "静置",
+    "content": "背景",
+    "deleted": false,
+    "image": "public/scene-batches/108/客厅/04_客厅_全景_平视_精致_纯环境.jpg",
+    "detailTags": [],
+    "productForms": [
+      "包装盒",
+      "药板",
+      "药片"
+    ],
+    "cameraAngle": "平视",
+    "subjectOrientation": "不限"
+  },
+  {
+    "id": "SCENE108-LIVING-05",
+    "title": "客厅背景 5",
+    "style": "精致随手PO",
+    "scene": "背景",
+    "format": "静置",
+    "shot": "静置",
+    "content": "背景",
+    "deleted": false,
+    "image": "public/scene-batches/108/客厅/05_客厅_近景_平视_精致_纯环境.jpg",
+    "detailTags": [],
+    "productForms": [
+      "包装盒",
+      "药板",
+      "药片"
+    ],
+    "cameraAngle": "平视",
+    "subjectOrientation": "不限"
+  },
+  {
+    "id": "SCENE108-LIVING-06",
+    "title": "客厅背景 6",
+    "style": "素人随手PO",
+    "scene": "背景",
+    "format": "静置",
+    "shot": "静置",
+    "content": "背景",
+    "deleted": false,
+    "image": "public/scene-batches/108/客厅/06_客厅_近景_平视_素人_纯环境.jpg",
+    "detailTags": [],
+    "productForms": [
+      "包装盒",
+      "药板",
+      "药片"
+    ],
+    "cameraAngle": "平视",
+    "subjectOrientation": "不限"
+  },
+  {
+    "id": "SCENE108-LIVING-07",
+    "title": "客厅背景 7",
+    "style": "精致随手PO",
+    "scene": "背景",
+    "format": "静置",
+    "shot": "静置",
+    "content": "背景",
+    "deleted": false,
+    "image": "public/scene-batches/108/客厅/07_客厅_全景_平视_精致_带产品.jpg",
+    "detailTags": [],
+    "productForms": [
+      "包装盒",
+      "药板",
+      "药片"
+    ],
+    "cameraAngle": "平视",
+    "subjectOrientation": "不限"
+  },
+  {
+    "id": "SCENE108-LIVING-08",
+    "title": "客厅背景 8",
+    "style": "精致随手PO",
+    "scene": "背景",
+    "format": "静置",
+    "shot": "静置",
+    "content": "背景",
+    "deleted": false,
+    "image": "public/scene-batches/108/客厅/08_客厅_全景_平视_精致_纯环境.jpg",
+    "detailTags": [],
+    "productForms": [
+      "包装盒",
+      "药板",
+      "药片"
+    ],
+    "cameraAngle": "平视",
+    "subjectOrientation": "不限"
+  },
+  {
+    "id": "SCENE108-LIVING-09",
+    "title": "客厅背景 9",
+    "style": "素人随手PO",
+    "scene": "背景",
+    "format": "静置",
+    "shot": "静置",
+    "content": "背景",
+    "deleted": false,
+    "image": "public/scene-batches/108/客厅/09_客厅_近景_平视_素人_带产品.jpg",
+    "detailTags": [],
+    "productForms": [
+      "包装盒",
+      "药板",
+      "药片"
+    ],
+    "cameraAngle": "平视",
+    "subjectOrientation": "不限"
+  },
+  {
+    "id": "SCENE108-BED-01",
+    "title": "卧室背景 2",
+    "style": "精致随手PO",
+    "scene": "背景",
+    "format": "静置",
+    "shot": "静置",
+    "content": "背景",
+    "deleted": false,
+    "image": "public/scene-batches/108/卧室/01_卧室_近景_平视_精致_纯环境.jpg",
+    "detailTags": [],
+    "productForms": [
+      "包装盒",
+      "药板",
+      "药片"
+    ],
+    "cameraAngle": "平视",
+    "subjectOrientation": "不限"
+  },
+  {
+    "id": "SCENE108-BED-02",
+    "title": "卧室背景 3",
+    "style": "精致随手PO",
+    "scene": "背景",
+    "format": "静置",
+    "shot": "静置",
+    "content": "背景",
+    "deleted": false,
+    "image": "public/scene-batches/108/卧室/02_卧室_全景_平视_精致_纯环境.jpg",
+    "detailTags": [],
+    "productForms": [
+      "包装盒",
+      "药板",
+      "药片"
+    ],
+    "cameraAngle": "平视",
+    "subjectOrientation": "不限"
+  },
+  {
+    "id": "SCENE108-BED-03",
+    "title": "卧室背景 4",
+    "style": "素人随手PO",
+    "scene": "背景",
+    "format": "静置",
+    "shot": "静置",
+    "content": "背景",
+    "deleted": false,
+    "image": "public/scene-batches/108/卧室/03_卧室_近景_平视_素人_纯环境.jpg",
+    "detailTags": [],
+    "productForms": [
+      "包装盒",
+      "药板",
+      "药片"
+    ],
+    "cameraAngle": "平视",
+    "subjectOrientation": "不限"
+  },
+  {
+    "id": "SCENE108-BED-04",
+    "title": "卧室背景 5",
+    "style": "素人随手PO",
+    "scene": "背景",
+    "format": "静置",
+    "shot": "静置",
+    "content": "背景",
+    "deleted": false,
+    "image": "public/scene-batches/108/卧室/04_卧室_近景_平视_素人_纯环境.jpg",
+    "detailTags": [],
+    "productForms": [
+      "包装盒",
+      "药板",
+      "药片"
+    ],
+    "cameraAngle": "平视",
+    "subjectOrientation": "不限"
+  },
+  {
+    "id": "SCENE108-BED-05",
+    "title": "卧室背景 6",
+    "style": "素人随手PO",
+    "scene": "背景",
+    "format": "静置",
+    "shot": "静置",
+    "content": "背景",
+    "deleted": false,
+    "image": "public/scene-batches/108/卧室/05_卧室_特写_平视_素人_纯环境.jpg",
+    "detailTags": [],
+    "productForms": [
+      "包装盒",
+      "药板",
+      "药片"
+    ],
+    "cameraAngle": "平视",
+    "subjectOrientation": "不限"
+  },
+  {
+    "id": "SCENE108-BED-06",
+    "title": "卧室背景 7",
+    "style": "精致随手PO",
+    "scene": "背景",
+    "format": "静置",
+    "shot": "静置",
+    "content": "背景",
+    "deleted": false,
+    "image": "public/scene-batches/108/卧室/06_卧室_近景_平视_精致_纯环境.jpg",
+    "detailTags": [],
+    "productForms": [
+      "包装盒",
+      "药板",
+      "药片"
+    ],
+    "cameraAngle": "平视",
+    "subjectOrientation": "不限"
+  },
+  {
+    "id": "SCENE108-BED-07",
+    "title": "卧室背景 8",
+    "style": "素人随手PO",
+    "scene": "背景",
+    "format": "静置",
+    "shot": "静置",
+    "content": "背景",
+    "deleted": false,
+    "image": "public/scene-batches/108/卧室/07_卧室_近景_俯视_素人_带产品.jpg",
+    "detailTags": [],
+    "productForms": [
+      "包装盒",
+      "药板",
+      "药片"
+    ],
+    "cameraAngle": "高位俯拍",
+    "subjectOrientation": "不限"
+  },
+  {
+    "id": "SCENE108-BED-08",
+    "title": "卧室背景 9",
+    "style": "精致随手PO",
+    "scene": "背景",
+    "format": "静置",
+    "shot": "静置",
+    "content": "背景",
+    "deleted": false,
+    "image": "public/scene-batches/108/卧室/08_卧室_近景_平视_精致_带产品.jpg",
+    "detailTags": [],
+    "productForms": [
+      "包装盒",
+      "药板",
+      "药片"
+    ],
+    "cameraAngle": "平视",
+    "subjectOrientation": "不限"
+  },
+  {
+    "id": "SCENE108-BED-09",
+    "title": "卧室背景 10",
+    "style": "精致随手PO",
+    "scene": "背景",
+    "format": "静置",
+    "shot": "静置",
+    "content": "背景",
+    "deleted": false,
+    "image": "public/scene-batches/108/卧室/09_卧室_全景_平视_精致_带产品.jpg",
+    "detailTags": [],
+    "productForms": [
+      "包装盒",
+      "药板",
+      "药片"
+    ],
+    "cameraAngle": "平视",
+    "subjectOrientation": "不限"
+  },
+  {
+    "id": "SCENE108-BED-10",
+    "title": "卧室背景 11",
+    "style": "精致随手PO",
+    "scene": "背景",
+    "format": "静置",
+    "shot": "静置",
+    "content": "背景",
+    "deleted": false,
+    "image": "public/scene-batches/108/卧室/10_卧室_近景_平视_精致_带产品.jpg",
+    "detailTags": [],
+    "productForms": [
+      "包装盒",
+      "药板",
+      "药片"
+    ],
+    "cameraAngle": "平视",
+    "subjectOrientation": "不限"
+  },
+  {
+    "id": "SCENE108-BED-11",
+    "title": "卧室背景 12",
+    "style": "素人随手PO",
+    "scene": "背景",
+    "format": "静置",
+    "shot": "静置",
+    "content": "背景",
+    "deleted": false,
+    "image": "public/scene-batches/108/卧室/11_卧室_全景_平视_素人_带产品.jpg",
+    "detailTags": [],
+    "productForms": [
+      "包装盒",
+      "药板",
+      "药片"
+    ],
+    "cameraAngle": "平视",
+    "subjectOrientation": "不限"
+  },
+  {
+    "id": "SCENE108-BED-12",
+    "title": "卧室背景 13",
+    "style": "精致随手PO",
+    "scene": "背景",
+    "format": "静置",
+    "shot": "静置",
+    "content": "背景",
+    "deleted": false,
+    "image": "public/scene-batches/108/卧室/12_卧室_全景_平视_精致_纯环境.jpg",
+    "detailTags": [],
+    "productForms": [
+      "包装盒",
+      "药板",
+      "药片"
+    ],
+    "cameraAngle": "平视",
+    "subjectOrientation": "不限"
+  },
+  {
+    "id": "SCENE108-BED-13",
+    "title": "卧室背景 14",
+    "style": "精致随手PO",
+    "scene": "背景",
+    "format": "静置",
+    "shot": "静置",
+    "content": "背景",
+    "deleted": false,
+    "image": "public/scene-batches/108/卧室/13_卧室_近景_平视_精致_带产品.jpg",
+    "detailTags": [],
+    "productForms": [
+      "包装盒",
+      "药板",
+      "药片"
+    ],
+    "cameraAngle": "平视",
+    "subjectOrientation": "不限"
+  },
+  {
+    "id": "SCENE108-BED-14",
+    "title": "卧室背景 15",
+    "style": "精致随手PO",
+    "scene": "背景",
+    "format": "静置",
+    "shot": "静置",
+    "content": "背景",
+    "deleted": false,
+    "image": "public/scene-batches/108/卧室/14_卧室_近景_俯视_精致_带产品.jpg",
+    "detailTags": [],
+    "productForms": [
+      "包装盒",
+      "药板",
+      "药片"
+    ],
+    "cameraAngle": "高位俯拍",
+    "subjectOrientation": "不限"
+  },
+  {
+    "id": "SCENE109-DINING-01",
+    "title": "餐桌背景 7",
+    "style": "精致随手PO",
+    "scene": "背景",
+    "format": "静置",
+    "shot": "静置",
+    "content": "背景",
+    "deleted": false,
+    "image": "public/scene-batches/109/餐厅/01_餐厅_特写_俯视_精致_纯环境.jpg",
+    "detailTags": [],
+    "productForms": [
+      "包装盒",
+      "药板",
+      "药片"
+    ],
+    "cameraAngle": "高位俯拍",
+    "subjectOrientation": "不限"
+  },
+  {
+    "id": "SCENE109-DINING-02",
+    "title": "餐桌背景 8",
+    "style": "素人随手PO",
+    "scene": "背景",
+    "format": "静置",
+    "shot": "静置",
+    "content": "背景",
+    "deleted": false,
+    "image": "public/scene-batches/109/餐厅/02_餐厅_近景_俯视_素人_纯环境.jpg",
+    "detailTags": [],
+    "productForms": [
+      "包装盒",
+      "药板",
+      "药片"
+    ],
+    "cameraAngle": "高位俯拍",
+    "subjectOrientation": "不限"
+  },
+  {
+    "id": "SCENE109-DINING-03",
+    "title": "餐桌背景 9",
+    "style": "素人随手PO",
+    "scene": "背景",
+    "format": "静置",
+    "shot": "静置",
+    "content": "背景",
+    "deleted": false,
+    "image": "public/scene-batches/109/餐厅/03_餐厅_近景_俯视_素人_纯环境.jpg",
+    "detailTags": [],
+    "productForms": [
+      "包装盒",
+      "药板",
+      "药片"
+    ],
+    "cameraAngle": "高位俯拍",
+    "subjectOrientation": "不限"
+  },
+  {
+    "id": "SCENE109-DINING-04",
+    "title": "餐桌背景 10",
+    "style": "素人随手PO",
+    "scene": "背景",
+    "format": "静置",
+    "shot": "静置",
+    "content": "背景",
+    "deleted": false,
+    "image": "public/scene-batches/109/餐厅/04_餐厅_近景_俯视_素人_纯环境.jpg",
+    "detailTags": [],
+    "productForms": [
+      "包装盒",
+      "药板",
+      "药片"
+    ],
+    "cameraAngle": "高位俯拍",
+    "subjectOrientation": "不限"
+  },
+  {
+    "id": "SCENE109-DINING-05",
+    "title": "餐桌背景 11",
+    "style": "精致随手PO",
+    "scene": "背景",
+    "format": "静置",
+    "shot": "静置",
+    "content": "背景",
+    "deleted": false,
+    "image": "public/scene-batches/109/餐厅/05_餐厅_近景_俯视_精致_纯环境.jpg",
+    "detailTags": [],
+    "productForms": [
+      "包装盒",
+      "药板",
+      "药片"
+    ],
+    "cameraAngle": "高位俯拍",
+    "subjectOrientation": "不限"
+  },
+  {
+    "id": "SCENE109-DINING-06",
+    "title": "餐桌背景 12",
+    "style": "精致随手PO",
+    "scene": "背景",
+    "format": "静置",
+    "shot": "静置",
+    "content": "背景",
+    "deleted": false,
+    "image": "public/scene-batches/109/餐厅/06_餐厅_全景_平视_精致_纯环境.jpg",
+    "detailTags": [],
+    "productForms": [
+      "包装盒",
+      "药板",
+      "药片"
+    ],
+    "cameraAngle": "平视",
+    "subjectOrientation": "不限"
+  },
+  {
+    "id": "SCENE109-LIVING-01",
+    "title": "客厅背景 10",
+    "style": "素人随手PO",
+    "scene": "背景",
+    "format": "静置",
+    "shot": "静置",
+    "content": "背景",
+    "deleted": false,
+    "image": "public/scene-batches/109/客厅/01_客厅_近景_平视_素人_纯环境.jpg",
+    "detailTags": [],
+    "productForms": [
+      "包装盒",
+      "药板",
+      "药片"
+    ],
+    "cameraAngle": "平视",
+    "subjectOrientation": "不限"
+  },
+  {
+    "id": "SCENE109-LIVING-02",
+    "title": "客厅背景 11",
+    "style": "素人随手PO",
+    "scene": "背景",
+    "format": "静置",
+    "shot": "静置",
+    "content": "背景",
+    "deleted": false,
+    "image": "public/scene-batches/109/客厅/02_客厅_近景_平视_素人_纯环境.jpg",
+    "detailTags": [],
+    "productForms": [
+      "包装盒",
+      "药板",
+      "药片"
+    ],
+    "cameraAngle": "平视",
+    "subjectOrientation": "不限"
+  },
+  {
+    "id": "SCENE109-LIVING-03",
+    "title": "客厅背景 12",
+    "style": "精致随手PO",
+    "scene": "背景",
+    "format": "静置",
+    "shot": "静置",
+    "content": "背景",
+    "deleted": false,
+    "image": "public/scene-batches/109/客厅/03_客厅_特写_俯视_精致_纯环境.jpg",
+    "detailTags": [],
+    "productForms": [
+      "包装盒",
+      "药板",
+      "药片"
+    ],
+    "cameraAngle": "高位俯拍",
+    "subjectOrientation": "不限"
+  },
+  {
+    "id": "SCENE109-LIVING-04",
+    "title": "客厅背景 13",
+    "style": "精致随手PO",
+    "scene": "背景",
+    "format": "静置",
+    "shot": "静置",
+    "content": "背景",
+    "deleted": false,
+    "image": "public/scene-batches/109/客厅/04_客厅_近景_平视_精致_纯环境.jpg",
+    "detailTags": [],
+    "productForms": [
+      "包装盒",
+      "药板",
+      "药片"
+    ],
+    "cameraAngle": "平视",
+    "subjectOrientation": "不限"
+  },
+  {
+    "id": "SCENE109-LIVING-05",
+    "title": "客厅背景 14",
+    "style": "素人随手PO",
+    "scene": "背景",
+    "format": "静置",
+    "shot": "静置",
+    "content": "背景",
+    "deleted": false,
+    "image": "public/scene-batches/109/客厅/05_客厅_近景_平视_素人_纯环境.jpg",
+    "detailTags": [],
+    "productForms": [
+      "包装盒",
+      "药板",
+      "药片"
+    ],
+    "cameraAngle": "平视",
+    "subjectOrientation": "不限"
+  },
+  {
+    "id": "SCENE109-LIVING-06",
+    "title": "客厅背景 15",
+    "style": "素人随手PO",
+    "scene": "背景",
+    "format": "静置",
+    "shot": "静置",
+    "content": "背景",
+    "deleted": false,
+    "image": "public/scene-batches/109/客厅/06_客厅_特写_平视_素人_纯环境.jpg",
+    "detailTags": [],
+    "productForms": [
+      "包装盒",
+      "药板",
+      "药片"
+    ],
+    "cameraAngle": "平视",
+    "subjectOrientation": "不限"
+  },
+  {
+    "id": "SCENE109-LIVING-07",
+    "title": "客厅背景 16",
+    "style": "素人随手PO",
+    "scene": "背景",
+    "format": "静置",
+    "shot": "静置",
+    "content": "背景",
+    "deleted": false,
+    "image": "public/scene-batches/109/客厅/07_客厅_近景_平视_素人_纯环境.jpg",
+    "detailTags": [],
+    "productForms": [
+      "包装盒",
+      "药板",
+      "药片"
+    ],
+    "cameraAngle": "平视",
+    "subjectOrientation": "不限"
+  },
+  {
+    "id": "SCENE109-LIVING-08",
+    "title": "客厅背景 17",
+    "style": "精致随手PO",
+    "scene": "背景",
+    "format": "静置",
+    "shot": "静置",
+    "content": "背景",
+    "deleted": false,
+    "image": "public/scene-batches/109/客厅/08_客厅_近景_平视_精致_纯环境.jpg",
+    "detailTags": [],
+    "productForms": [
+      "包装盒",
+      "药板",
+      "药片"
+    ],
+    "cameraAngle": "平视",
+    "subjectOrientation": "不限"
+  },
+  {
+    "id": "SCENE109-LIVING-09",
+    "title": "客厅背景 18",
+    "style": "精致随手PO",
+    "scene": "背景",
+    "format": "静置",
+    "shot": "静置",
+    "content": "背景",
+    "deleted": false,
+    "image": "public/scene-batches/109/客厅/09_客厅_全景_平视_精致_纯环境.jpg",
+    "detailTags": [],
+    "productForms": [
+      "包装盒",
+      "药板",
+      "药片"
+    ],
+    "cameraAngle": "平视",
+    "subjectOrientation": "不限"
+  },
+  {
+    "id": "SCENE109-LIVING-10",
+    "title": "客厅背景 19",
+    "style": "素人随手PO",
+    "scene": "背景",
+    "format": "静置",
+    "shot": "静置",
+    "content": "背景",
+    "deleted": false,
+    "image": "public/scene-batches/109/客厅/10_客厅_全景_平视_素人_纯环境.jpg",
+    "detailTags": [],
+    "productForms": [
+      "包装盒",
+      "药板",
+      "药片"
+    ],
+    "cameraAngle": "平视",
+    "subjectOrientation": "不限"
+  },
+  {
+    "id": "SCENE109-LIVING-11",
+    "title": "客厅背景 20",
+    "style": "素人随手PO",
+    "scene": "背景",
+    "format": "静置",
+    "shot": "静置",
+    "content": "背景",
+    "deleted": false,
+    "image": "public/scene-batches/109/客厅/11_客厅_全景_平视_素人_纯环境.jpg",
+    "detailTags": [],
+    "productForms": [
+      "包装盒",
+      "药板",
+      "药片"
+    ],
+    "cameraAngle": "平视",
+    "subjectOrientation": "不限"
+  },
+  {
+    "id": "SCENE109-LIVING-12",
+    "title": "客厅背景 21",
+    "style": "素人随手PO",
+    "scene": "背景",
+    "format": "静置",
+    "shot": "静置",
+    "content": "背景",
+    "deleted": false,
+    "image": "public/scene-batches/109/客厅/12_客厅_全景_平视_素人_纯环境.jpg",
+    "detailTags": [],
+    "productForms": [
+      "包装盒",
+      "药板",
+      "药片"
+    ],
+    "cameraAngle": "平视",
+    "subjectOrientation": "不限"
+  },
+  {
+    "id": "SCENE109-BED-01",
+    "title": "卧室背景 16",
+    "style": "素人随手PO",
+    "scene": "背景",
+    "format": "静置",
+    "shot": "静置",
+    "content": "背景",
+    "deleted": false,
+    "image": "public/scene-batches/109/卧室/01_卧室_特写_俯视_素人_纯环境.jpg",
+    "detailTags": [],
+    "productForms": [
+      "包装盒",
+      "药板",
+      "药片"
+    ],
+    "cameraAngle": "高位俯拍",
+    "subjectOrientation": "不限"
+  },
+  {
+    "id": "SCENE109-BED-02",
+    "title": "卧室背景 17",
+    "style": "素人随手PO",
+    "scene": "背景",
+    "format": "静置",
+    "shot": "静置",
+    "content": "背景",
+    "deleted": false,
+    "image": "public/scene-batches/109/卧室/02_卧室_近景_俯视_素人_纯环境.jpg",
+    "detailTags": [],
+    "productForms": [
+      "包装盒",
+      "药板",
+      "药片"
+    ],
+    "cameraAngle": "高位俯拍",
+    "subjectOrientation": "不限"
+  },
+  {
+    "id": "SCENE109-BED-03",
+    "title": "卧室背景 18",
+    "style": "素人随手PO",
+    "scene": "背景",
+    "format": "静置",
+    "shot": "静置",
+    "content": "背景",
+    "deleted": false,
+    "image": "public/scene-batches/109/卧室/03_卧室_全景_平视_素人_纯环境.jpg",
+    "detailTags": [],
+    "productForms": [
+      "包装盒",
+      "药板",
+      "药片"
+    ],
+    "cameraAngle": "平视",
+    "subjectOrientation": "不限"
+  },
+  {
+    "id": "SCENE109-BED-04",
+    "title": "卧室背景 19",
+    "style": "精致随手PO",
+    "scene": "背景",
+    "format": "静置",
+    "shot": "静置",
+    "content": "背景",
+    "deleted": false,
+    "image": "public/scene-batches/109/卧室/04_卧室_近景_平视_精致_纯环境.jpg",
+    "detailTags": [],
+    "productForms": [
+      "包装盒",
+      "药板",
+      "药片"
+    ],
+    "cameraAngle": "平视",
+    "subjectOrientation": "不限"
+  },
+  {
+    "id": "SCENE109-BED-05",
+    "title": "卧室背景 20",
+    "style": "精致随手PO",
+    "scene": "背景",
+    "format": "静置",
+    "shot": "静置",
+    "content": "背景",
+    "deleted": false,
+    "image": "public/scene-batches/109/卧室/05_卧室_全景_平视_精致_纯环境.jpg",
+    "detailTags": [],
+    "productForms": [
+      "包装盒",
+      "药板",
+      "药片"
+    ],
+    "cameraAngle": "平视",
+    "subjectOrientation": "不限"
+  },
+  {
+    "id": "SCENE109-BED-06",
+    "title": "卧室背景 21",
+    "style": "精致随手PO",
+    "scene": "背景",
+    "format": "静置",
+    "shot": "静置",
+    "content": "背景",
+    "deleted": false,
+    "image": "public/scene-batches/109/卧室/06_卧室_近景_平视_精致_纯环境.jpg",
+    "detailTags": [],
+    "productForms": [
+      "包装盒",
+      "药板",
+      "药片"
+    ],
+    "cameraAngle": "平视",
+    "subjectOrientation": "不限"
+  },
+  {
+    "id": "SCENE109-BED-07",
+    "title": "卧室背景 22",
+    "style": "精致随手PO",
+    "scene": "背景",
+    "format": "静置",
+    "shot": "静置",
+    "content": "背景",
+    "deleted": false,
+    "image": "public/scene-batches/109/卧室/07_卧室_近景_俯视_精致_纯环境.jpg",
+    "detailTags": [],
+    "productForms": [
+      "包装盒",
+      "药板",
+      "药片"
+    ],
+    "cameraAngle": "高位俯拍",
+    "subjectOrientation": "不限"
+  },
+  {
+    "id": "SCENE109-BED-08",
+    "title": "卧室背景 23",
+    "style": "素人随手PO",
+    "scene": "背景",
+    "format": "静置",
+    "shot": "静置",
+    "content": "背景",
+    "deleted": false,
+    "image": "public/scene-batches/109/卧室/08_卧室_全景_平视_素人_纯环境.jpg",
+    "detailTags": [],
+    "productForms": [
+      "包装盒",
+      "药板",
+      "药片"
+    ],
+    "cameraAngle": "平视",
+    "subjectOrientation": "不限"
+  },
+  {
+    "id": "SCENE109-BED-09",
+    "title": "卧室背景 24",
+    "style": "素人随手PO",
+    "scene": "背景",
+    "format": "静置",
+    "shot": "静置",
+    "content": "背景",
+    "deleted": false,
+    "image": "public/scene-batches/109/卧室/09_卧室_特写_俯视_素人_纯环境.jpg",
+    "detailTags": [],
+    "productForms": [
+      "包装盒",
+      "药板",
+      "药片"
+    ],
+    "cameraAngle": "高位俯拍",
+    "subjectOrientation": "不限"
+  },
+  {
+    "id": "SCENE109-BED-10",
+    "title": "卧室背景 25",
+    "style": "素人随手PO",
+    "scene": "背景",
+    "format": "静置",
+    "shot": "静置",
+    "content": "背景",
+    "deleted": false,
+    "image": "public/scene-batches/109/卧室/10_卧室_全景_平视_素人_纯环境.jpg",
+    "detailTags": [],
+    "productForms": [
+      "包装盒",
+      "药板",
+      "药片"
+    ],
+    "cameraAngle": "平视",
+    "subjectOrientation": "不限"
+  },
+  {
+    "id": "SCENE109-BED-11",
+    "title": "卧室背景 26",
+    "style": "素人随手PO",
+    "scene": "背景",
+    "format": "静置",
+    "shot": "静置",
+    "content": "背景",
+    "deleted": false,
+    "image": "public/scene-batches/109/卧室/11_卧室_全景_平视_素人_纯环境.jpg",
+    "detailTags": [],
+    "productForms": [
+      "包装盒",
+      "药板",
+      "药片"
+    ],
+    "cameraAngle": "平视",
+    "subjectOrientation": "不限"
+  },
+  {
+    "id": "SCENE109-BED-12",
+    "title": "卧室背景 27",
+    "style": "素人随手PO",
+    "scene": "背景",
+    "format": "静置",
+    "shot": "静置",
+    "content": "背景",
+    "deleted": false,
+    "image": "public/scene-batches/109/卧室/12_卧室_特写_平视_素人_纯环境.jpg",
+    "detailTags": [],
+    "productForms": [
+      "包装盒",
+      "药板",
+      "药片"
+    ],
+    "cameraAngle": "平视",
+    "subjectOrientation": "不限"
+  },
+  {
+    "id": "SCENE109-BED-13",
+    "title": "卧室背景 28",
+    "style": "精致随手PO",
+    "scene": "背景",
+    "format": "静置",
+    "shot": "静置",
+    "content": "背景",
+    "deleted": false,
+    "image": "public/scene-batches/109/卧室/13_卧室_特写_俯视_精致_纯环境.jpg",
+    "detailTags": [],
+    "productForms": [
+      "包装盒",
+      "药板",
+      "药片"
+    ],
+    "cameraAngle": "高位俯拍",
+    "subjectOrientation": "不限"
+  },
+  {
+    "id": "SCENE930-LIVING-01",
+    "title": "客厅背景 22",
+    "style": "素人随手PO",
+    "scene": "背景",
+    "format": "静置",
+    "shot": "静置",
+    "content": "背景",
+    "deleted": false,
+    "image": "public/scene-batches/930/客厅/01_客厅_全景_平视_素人_纯环境.jpg",
+    "detailTags": [],
+    "productForms": [
+      "包装盒",
+      "药板",
+      "药片"
+    ],
+    "cameraAngle": "平视",
+    "subjectOrientation": "不限"
+  },
+  {
+    "id": "SCENE930-LIVING-02",
+    "title": "客厅背景 23",
+    "style": "素人随手PO",
+    "scene": "背景",
+    "format": "静置",
+    "shot": "静置",
+    "content": "背景",
+    "deleted": false,
+    "image": "public/scene-batches/930/客厅/02_客厅_近景_平视_素人_纯环境.jpg",
+    "detailTags": [],
+    "productForms": [
+      "包装盒",
+      "药板",
+      "药片"
+    ],
+    "cameraAngle": "平视",
+    "subjectOrientation": "不限"
+  },
+  {
+    "id": "SCENE930-LIVING-03",
+    "title": "客厅背景 24",
+    "style": "精致随手PO",
+    "scene": "背景",
+    "format": "静置",
+    "shot": "静置",
+    "content": "背景",
+    "deleted": false,
+    "image": "public/scene-batches/930/客厅/03_客厅_近景_平视_精致_纯环境.jpg",
+    "detailTags": [],
+    "productForms": [
+      "包装盒",
+      "药板",
+      "药片"
+    ],
+    "cameraAngle": "平视",
+    "subjectOrientation": "不限"
+  },
+  {
+    "id": "SCENE930-LIVING-04",
+    "title": "客厅背景 25",
+    "style": "精致随手PO",
+    "scene": "背景",
+    "format": "静置",
+    "shot": "静置",
+    "content": "背景",
+    "deleted": false,
+    "image": "public/scene-batches/930/客厅/04_客厅_全景_平视_精致_纯环境.jpg",
+    "detailTags": [],
+    "productForms": [
+      "包装盒",
+      "药板",
+      "药片"
+    ],
+    "cameraAngle": "平视",
+    "subjectOrientation": "不限"
+  },
+  {
+    "id": "SCENE930-LIVING-05",
+    "title": "客厅背景 26",
+    "style": "精致随手PO",
+    "scene": "背景",
+    "format": "静置",
+    "shot": "静置",
+    "content": "背景",
+    "deleted": false,
+    "image": "public/scene-batches/930/客厅/05_客厅_近景_平视_精致_带产品.jpg",
+    "detailTags": [],
+    "productForms": [
+      "包装盒",
+      "药板",
+      "药片"
+    ],
+    "cameraAngle": "平视",
+    "subjectOrientation": "不限"
+  },
+  {
+    "id": "SCENE930-LIVING-06",
+    "title": "客厅背景 27",
+    "style": "精致随手PO",
+    "scene": "背景",
+    "format": "静置",
+    "shot": "静置",
+    "content": "背景",
+    "deleted": false,
+    "image": "public/scene-batches/930/客厅/06_客厅_特写_平视_精致_纯环境.jpg",
+    "detailTags": [],
+    "productForms": [
+      "包装盒",
+      "药板",
+      "药片"
+    ],
+    "cameraAngle": "平视",
+    "subjectOrientation": "不限"
+  },
+  {
+    "id": "SCENE930-LIVING-07",
+    "title": "客厅背景 28",
+    "style": "精致随手PO",
+    "scene": "背景",
+    "format": "静置",
+    "shot": "静置",
+    "content": "背景",
+    "deleted": false,
+    "image": "public/scene-batches/930/客厅/07_客厅_近景_平视_精致_纯环境.jpg",
+    "detailTags": [],
+    "productForms": [
+      "包装盒",
+      "药板",
+      "药片"
+    ],
+    "cameraAngle": "平视",
+    "subjectOrientation": "不限"
+  },
+  {
+    "id": "SCENE930-LIVING-08",
+    "title": "客厅背景 29",
+    "style": "素人随手PO",
+    "scene": "背景",
+    "format": "静置",
+    "shot": "静置",
+    "content": "背景",
+    "deleted": false,
+    "image": "public/scene-batches/930/客厅/08_客厅_全景_平视_素人_纯环境.jpg",
+    "detailTags": [],
+    "productForms": [
+      "包装盒",
+      "药板",
+      "药片"
+    ],
+    "cameraAngle": "平视",
+    "subjectOrientation": "不限"
+  },
+  {
+    "id": "SCENE930-LIVING-09",
+    "title": "客厅背景 30",
+    "style": "素人随手PO",
+    "scene": "背景",
+    "format": "静置",
+    "shot": "静置",
+    "content": "背景",
+    "deleted": false,
+    "image": "public/scene-batches/930/客厅/09_客厅_全景_平视_素人_纯环境.jpg",
+    "detailTags": [],
+    "productForms": [
+      "包装盒",
+      "药板",
+      "药片"
+    ],
+    "cameraAngle": "平视",
+    "subjectOrientation": "不限"
+  },
+  {
+    "id": "SCENE930-LIVING-10",
+    "title": "客厅背景 31",
+    "style": "素人随手PO",
+    "scene": "背景",
+    "format": "静置",
+    "shot": "静置",
+    "content": "背景",
+    "deleted": false,
+    "image": "public/scene-batches/930/客厅/10_客厅_近景_俯视_素人_纯环境.jpg",
+    "detailTags": [],
+    "productForms": [
+      "包装盒",
+      "药板",
+      "药片"
+    ],
+    "cameraAngle": "高位俯拍",
+    "subjectOrientation": "不限"
+  },
+  {
+    "id": "SCENE930-BED-01",
+    "title": "卧室背景 29",
+    "style": "精致随手PO",
+    "scene": "背景",
+    "format": "静置",
+    "shot": "静置",
+    "content": "背景",
+    "deleted": false,
+    "image": "public/scene-batches/930/卧室/01_卧室_近景_俯视_精致_带产品.jpg",
+    "detailTags": [],
+    "productForms": [
+      "包装盒",
+      "药板",
+      "药片"
+    ],
+    "cameraAngle": "高位俯拍",
+    "subjectOrientation": "不限"
+  },
+  {
+    "id": "SCENE930-BED-02",
+    "title": "卧室背景 30",
+    "style": "素人随手PO",
+    "scene": "背景",
+    "format": "静置",
+    "shot": "静置",
+    "content": "背景",
+    "deleted": false,
+    "image": "public/scene-batches/930/卧室/02_卧室_近景_俯视_素人_纯环境.jpg",
+    "detailTags": [],
+    "productForms": [
+      "包装盒",
+      "药板",
+      "药片"
+    ],
+    "cameraAngle": "高位俯拍",
+    "subjectOrientation": "不限"
+  },
+  {
+    "id": "SCENE930-BED-03",
+    "title": "卧室背景 31",
+    "style": "素人随手PO",
+    "scene": "背景",
+    "format": "静置",
+    "shot": "静置",
+    "content": "背景",
+    "deleted": false,
+    "image": "public/scene-batches/930/卧室/03_卧室_近景_俯视_素人_纯环境.jpg",
+    "detailTags": [],
+    "productForms": [
+      "包装盒",
+      "药板",
+      "药片"
+    ],
+    "cameraAngle": "高位俯拍",
+    "subjectOrientation": "不限"
+  },
+  {
+    "id": "SCENE930-BED-04",
+    "title": "卧室背景 32",
+    "style": "精致随手PO",
+    "scene": "背景",
+    "format": "静置",
+    "shot": "静置",
+    "content": "背景",
+    "deleted": false,
+    "image": "public/scene-batches/930/卧室/04_卧室_全景_平视_精致_纯环境.jpg",
+    "detailTags": [],
+    "productForms": [
+      "包装盒",
+      "药板",
+      "药片"
+    ],
+    "cameraAngle": "平视",
+    "subjectOrientation": "不限"
+  },
+  {
+    "id": "SCENE930-BED-05",
+    "title": "卧室背景 33",
+    "style": "素人随手PO",
+    "scene": "背景",
+    "format": "静置",
+    "shot": "静置",
+    "content": "背景",
+    "deleted": false,
+    "image": "public/scene-batches/930/卧室/05_卧室_全景_平视_素人_纯环境.jpg",
+    "detailTags": [],
+    "productForms": [
+      "包装盒",
+      "药板",
+      "药片"
+    ],
+    "cameraAngle": "平视",
+    "subjectOrientation": "不限"
+  },
+  {
+    "id": "SCENE930-BED-06",
+    "title": "卧室背景 34",
+    "style": "精致随手PO",
+    "scene": "背景",
+    "format": "静置",
+    "shot": "静置",
+    "content": "背景",
+    "deleted": false,
+    "image": "public/scene-batches/930/卧室/06_卧室_全景_平视_精致_纯环境.jpg",
+    "detailTags": [],
+    "productForms": [
+      "包装盒",
+      "药板",
+      "药片"
+    ],
+    "cameraAngle": "平视",
+    "subjectOrientation": "不限"
+  },
+  {
+    "id": "SCENE930-BED-07",
+    "title": "卧室背景 35",
+    "style": "精致随手PO",
+    "scene": "背景",
+    "format": "静置",
+    "shot": "静置",
+    "content": "背景",
+    "deleted": false,
+    "image": "public/scene-batches/930/卧室/07_卧室_近景_俯视_精致_带产品.jpg",
+    "detailTags": [],
+    "productForms": [
+      "包装盒",
+      "药板",
+      "药片"
+    ],
+    "cameraAngle": "高位俯拍",
+    "subjectOrientation": "不限"
+  },
+  {
+    "id": "SCENE930-BED-08",
+    "title": "卧室背景 36",
+    "style": "精致随手PO",
+    "scene": "背景",
+    "format": "静置",
+    "shot": "静置",
+    "content": "背景",
+    "deleted": false,
+    "image": "public/scene-batches/930/卧室/08_卧室_近景_俯视_精致_带产品.jpg",
+    "detailTags": [],
+    "productForms": [
+      "包装盒",
+      "药板",
+      "药片"
+    ],
+    "cameraAngle": "高位俯拍",
+    "subjectOrientation": "不限"
+  },
+  {
+    "id": "SCENE930-BED-09",
+    "title": "卧室背景 37",
+    "style": "素人随手PO",
+    "scene": "背景",
+    "format": "静置",
+    "shot": "静置",
+    "content": "背景",
+    "deleted": false,
+    "image": "public/scene-batches/930/卧室/09_卧室_特写_俯视_素人_带产品.jpg",
+    "detailTags": [],
+    "productForms": [
+      "包装盒",
+      "药板",
+      "药片"
+    ],
+    "cameraAngle": "高位俯拍",
+    "subjectOrientation": "不限"
+  },
+  {
+    "id": "SCENE930-BED-10",
+    "title": "卧室背景 38",
+    "style": "素人随手PO",
+    "scene": "背景",
+    "format": "静置",
+    "shot": "静置",
+    "content": "背景",
+    "deleted": false,
+    "image": "public/scene-batches/930/卧室/10_卧室_特写_俯视_素人_带产品.jpg",
+    "detailTags": [],
+    "productForms": [
+      "包装盒",
+      "药板",
+      "药片"
+    ],
+    "cameraAngle": "高位俯拍",
+    "subjectOrientation": "不限"
+  },
+  {
+    "id": "SCENE930-BED-11",
+    "title": "卧室背景 39",
+    "style": "素人随手PO",
+    "scene": "背景",
+    "format": "静置",
+    "shot": "静置",
+    "content": "背景",
+    "deleted": false,
+    "image": "public/scene-batches/930/卧室/11_卧室_特写_俯视_素人_纯环境.jpg",
+    "detailTags": [],
+    "productForms": [
+      "包装盒",
+      "药板",
+      "药片"
+    ],
+    "cameraAngle": "高位俯拍",
+    "subjectOrientation": "不限"
+  },
+  {
+    "id": "SCENE930-BED-12",
+    "title": "卧室背景 40",
+    "style": "素人随手PO",
+    "scene": "背景",
+    "format": "静置",
+    "shot": "静置",
+    "content": "背景",
+    "deleted": false,
+    "image": "public/scene-batches/930/卧室/12_卧室_特写_俯视_素人_纯环境.jpg",
+    "detailTags": [],
+    "productForms": [
+      "包装盒",
+      "药板",
+      "药片"
+    ],
+    "cameraAngle": "高位俯拍",
+    "subjectOrientation": "不限"
+  },
+  {
+    "id": "SCENE930-BED-13",
+    "title": "卧室背景 41",
+    "style": "精致随手PO",
+    "scene": "背景",
+    "format": "静置",
+    "shot": "静置",
+    "content": "背景",
+    "deleted": false,
+    "image": "public/scene-batches/930/卧室/13_卧室_特写_俯视_精致_带产品.jpg",
+    "detailTags": [],
+    "productForms": [
+      "包装盒",
+      "药板",
+      "药片"
+    ],
+    "cameraAngle": "高位俯拍",
+    "subjectOrientation": "不限"
+  },
+  {
+    "id": "SCENE930-BED-14",
+    "title": "卧室背景 42",
+    "style": "精致随手PO",
+    "scene": "背景",
+    "format": "静置",
+    "shot": "静置",
+    "content": "背景",
+    "deleted": false,
+    "image": "public/scene-batches/930/卧室/14_卧室_特写_俯视_精致_带产品.jpg",
+    "detailTags": [],
+    "productForms": [
+      "包装盒",
+      "药板",
+      "药片"
+    ],
+    "cameraAngle": "高位俯拍",
+    "subjectOrientation": "不限"
+  },
+  {
+    "id": "SCENE930-BED-15",
+    "title": "卧室背景 43",
+    "style": "素人随手PO",
+    "scene": "背景",
+    "format": "静置",
+    "shot": "静置",
+    "content": "背景",
+    "deleted": false,
+    "image": "public/scene-batches/930/卧室/15_卧室_特写_俯视_素人_带产品.jpg",
+    "detailTags": [],
+    "productForms": [
+      "包装盒",
+      "药板",
+      "药片"
+    ],
+    "cameraAngle": "高位俯拍",
+    "subjectOrientation": "不限"
+  },
+  {
+    "id": "SCENE930-BED-16",
+    "title": "卧室背景 44",
+    "style": "素人随手PO",
+    "scene": "背景",
+    "format": "静置",
+    "shot": "静置",
+    "content": "背景",
+    "deleted": false,
+    "image": "public/scene-batches/930/卧室/16_卧室_全景_平视_素人_纯环境.jpg",
+    "detailTags": [],
+    "productForms": [
+      "包装盒",
+      "药板",
+      "药片"
+    ],
+    "cameraAngle": "平视",
+    "subjectOrientation": "不限"
+  },
+  {
+    "id": "SCENE930-BED-17",
+    "title": "卧室背景 45",
+    "style": "素人随手PO",
+    "scene": "背景",
+    "format": "静置",
+    "shot": "静置",
+    "content": "背景",
+    "deleted": false,
+    "image": "public/scene-batches/930/卧室/17_卧室_全景_平视_素人_纯环境.jpg",
+    "detailTags": [],
+    "productForms": [
+      "包装盒",
+      "药板",
+      "药片"
+    ],
+    "cameraAngle": "平视",
+    "subjectOrientation": "不限"
+  },
+  {
+    "id": "SCENE930-BED-18",
+    "title": "卧室背景 46",
+    "style": "素人随手PO",
+    "scene": "背景",
+    "format": "静置",
+    "shot": "静置",
+    "content": "背景",
+    "deleted": false,
+    "image": "public/scene-batches/930/卧室/18_卧室_全景_平视_素人_纯环境.jpg",
+    "detailTags": [],
+    "productForms": [
+      "包装盒",
+      "药板",
+      "药片"
+    ],
+    "cameraAngle": "平视",
+    "subjectOrientation": "不限"
+  },
+  {
+    "id": "SCENE930-BED-19",
+    "title": "卧室背景 47",
+    "style": "精致随手PO",
+    "scene": "背景",
+    "format": "静置",
+    "shot": "静置",
+    "content": "背景",
+    "deleted": false,
+    "image": "public/scene-batches/930/卧室/19_卧室_特写_平视_精致_纯环境.jpg",
+    "detailTags": [],
+    "productForms": [
+      "包装盒",
+      "药板",
+      "药片"
+    ],
+    "cameraAngle": "平视",
+    "subjectOrientation": "不限"
+  },
+  {
+    "id": "SCENE930-BED-20",
+    "title": "卧室背景 48",
+    "style": "素人随手PO",
+    "scene": "背景",
+    "format": "静置",
+    "shot": "静置",
+    "content": "背景",
+    "deleted": false,
+    "image": "public/scene-batches/930/卧室/20_卧室_全景_平视_素人_带产品.jpg",
+    "detailTags": [],
+    "productForms": [
+      "包装盒",
+      "药板",
+      "药片"
+    ],
+    "cameraAngle": "平视",
+    "subjectOrientation": "不限"
+  },
+  {
+    "id": "SCENE930-BED-21",
+    "title": "卧室背景 49",
+    "style": "精致随手PO",
+    "scene": "背景",
+    "format": "静置",
+    "shot": "静置",
+    "content": "背景",
+    "deleted": false,
+    "image": "public/scene-batches/930/卧室/21_卧室_全景_平视_精致_纯环境.jpg",
+    "detailTags": [],
+    "productForms": [
+      "包装盒",
+      "药板",
+      "药片"
+    ],
+    "cameraAngle": "平视",
+    "subjectOrientation": "不限"
+  }
+]);
+})(globalThis.BayerStudio);
+
+
 (function registerCatalogs(studio) {
   'use strict';
 
@@ -8268,7 +10023,7 @@
         id: 'huggies-little-forest-s62', brandId: 'huggies', productId: 'huggies-little-forest-diapers', name: '小森林纸尿裤 S码 62片（试点）', status: 'ready',
         onboardingTier: 'quick', manualSelectionRequired: false,
         recommendedPilotAssetId: 'HG-LF-21',
-        pilotOutputProfile: { productCount: 1, excludeHands: true, excludePackaging: true },
+        pilotOutputProfile: { preserveSelectedComposition: true, excludeHands: true },
         poseCoverage: { identity: true, static: true, handheld: true, scale: true, combination: true },
         scaleBasis: '包装与白片同框实拍图提供本次组合内相对比例；独立尺寸母版为可选补充，不阻断手动生图',
         assetFilters: {
@@ -8326,7 +10081,7 @@
   const timeouts = Object.freeze({
     health: 8000,
     analysis: 25000,
-    prompt: 25000,
+    prompt: 55000,
     generation: 180000
   });
 
@@ -8561,7 +10316,7 @@
     }
   }
 
-  studio.services.sceneAnalysis = { apiBaseUrl, reviewApiBaseUrl, publicBaseUrl, imageRequestUrl, get, save, analyze, validateCleanPlate, health, promptGuide, productPose, stripOriginalProduct, requiredApiVersion };
+  studio.services.sceneAnalysis = { apiBaseUrl, reviewApiBaseUrl, publicBaseUrl, imageRequestUrl, imageDataUrl, get, save, analyze, validateCleanPlate, health, promptGuide, productPose, stripOriginalProduct, requiredApiVersion };
 })(globalThis.BayerStudio);
 
 
@@ -8572,7 +10327,8 @@
   let pending = null;
 
   function isLocalMock(apiBaseUrl) {
-    return ['127.0.0.1', 'localhost'].includes(location.hostname) && apiBaseUrl === location.origin;
+    return ['127.0.0.1', 'localhost'].includes(location.hostname)
+      && new URLSearchParams(location.search).get('experienceLive') === '1';
   }
 
   function tokenExpired(token) {
@@ -8690,7 +10446,7 @@
         ...result.selectedProps.map(prop => ({ role: 'prop', label: `道具候选池 ${prop.label}`, url: urlResolver(prop.image) }))
       ].slice(0, 8);
     }
-    const poseReference = { role: 'product', label: result.custom ? `唯一产品外观与姿态依据 ${result.productReference.label}` : `产品姿态参考（只锁角度，忽略颜色） ${result.productReference.label}`, url: urlResolver(result.productReference.image) };
+    const poseReference = { role: 'product', label: result.custom ? `唯一产品身份与数量依据；白底陈列排版可按现实承托调整 ${result.productReference.label}` : `产品姿态参考（只锁角度，忽略颜色） ${result.productReference.label}`, url: urlResolver(result.productReference.image) };
     const colorMaster = result.productReference.proportionReference
       ? { role: 'proportion', label: `${result.productReference.proportionReference.label}（颜色与身份唯一标准）`, url: urlResolver(result.productReference.proportionReference.image) }
       : null;
@@ -8999,6 +10755,8 @@
   const maxSourceBytes = 60 * 1024 * 1024;
   const targetTransferBytes = 7 * 1024 * 1024;
   const maxTransferDimension = 4096;
+  const maxPromptBytes = 450 * 1024;
+  const maxPromptDimension = 1200;
 
   function apiBaseUrl() {
     const local = ['127.0.0.1', 'localhost'].includes(location.hostname);
@@ -9072,11 +10830,50 @@
     return readDataUrl(optimized, label);
   }
 
+  async function promptImageDataUrl(dataUrl, label) {
+    const value = String(dataUrl || '');
+    if (!value.startsWith('data:image/')) throw new Error(`${label}不是可识别的图片`);
+    let bitmap;
+    try {
+      const blob = await fetch(value).then(response => response.blob());
+      bitmap = await createImageBitmap(blob, { imageOrientation: 'from-image' });
+      const longest = Math.max(bitmap.width, bitmap.height);
+      if (blob.size <= maxPromptBytes && longest <= maxPromptDimension) return value;
+      const scale = Math.min(1, maxPromptDimension / longest);
+      const canvas = document.createElement('canvas');
+      const context = canvas.getContext('2d', { alpha: false });
+      if (!context) throw new Error('当前浏览器无法生成 Gemini 识图副本');
+      let width = Math.max(1, Math.round(bitmap.width * scale));
+      let height = Math.max(1, Math.round(bitmap.height * scale));
+      for (let resizeRound = 0; resizeRound < 5; resizeRound += 1) {
+        canvas.width = width;
+        canvas.height = height;
+        context.fillStyle = '#ffffff';
+        context.fillRect(0, 0, width, height);
+        context.imageSmoothingEnabled = true;
+        context.imageSmoothingQuality = 'high';
+        context.drawImage(bitmap, 0, 0, width, height);
+        for (const quality of [0.8, 0.7, 0.6]) {
+          const compressed = await canvasBlob(canvas, quality);
+          if (compressed.size <= maxPromptBytes) return readDataUrl(compressed, label);
+        }
+        width = Math.max(1, Math.round(width * 0.82));
+        height = Math.max(1, Math.round(height * 0.82));
+      }
+      throw new Error(`${label}压缩后仍超过 Gemini 安全传输上限`);
+    } catch (error) {
+      if (/不是可识别|无法生成/.test(error.message || '')) throw error;
+      throw new Error(`无法准备${label}的 Gemini 识图副本：${error.message || '图片解码失败'}`);
+    } finally {
+      bitmap?.close?.();
+    }
+  }
+
   async function post(path, body, options = {}) {
     const base = apiBaseUrl();
     if (!base) throw new Error('尚未配置体验生图服务端地址');
     const requestId = globalThis.crypto?.randomUUID?.() || `experience-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    const accessHeaders = await studio.services.accessSession.authorizationHeader(base);
+    const accessHeaders = options.accessHeaders || await studio.services.accessSession.authorizationHeader(base);
     try {
       return await studio.services.request.requestJson(`${base}${path}`, {
         method: 'POST',
@@ -9105,7 +10902,13 @@
     return post('/api/experience/generate', input, options);
   }
 
-  studio.services.experienceGeneration = { fileDataUrl, needsOptimization, buildPrompt, generate, isLiveMode };
+  function authorizationHeaders() {
+    const base = apiBaseUrl();
+    if (!base) throw new Error('尚未配置体验生图服务端地址');
+    return studio.services.accessSession.authorizationHeader(base);
+  }
+
+  studio.services.experienceGeneration = { fileDataUrl, promptImageDataUrl, needsOptimization, buildPrompt, generate, authorizationHeaders, isLiveMode };
 })(globalThis.BayerStudio);
 
 
@@ -9361,11 +11164,7 @@
     if (!productAsset) return { status: 'ready', blockers, warnings, checks };
     const description = `${productAsset.productForm || ''} ${productAsset.label || ''} ${productAsset.subjectOrientation || ''} ${productAsset.visibleFaces || ''}`;
     const isDiaper = /母婴护理|纸尿裤|白片/.test(`${productCategory} ${description}`);
-    if (isDiaper && Number(outputProfile.productCount) === 1) {
-      if (/多片|两片|组合|双包装/.test(description)) blockers.push('首轮测试只允许一片纸尿裤，当前产品参考包含两片、多片或组合，请改选“手持单片 · 掌心承托 G”');
-      else checks.push('产品参考只展示一片纸尿裤');
-    }
-    if (isDiaper && outputProfile.excludePackaging && /包装/.test(description)) blockers.push('首轮测试不允许外包装，请改选单片白片参考');
+    if (isDiaper) checks.push('按当前所选产品参考保留单片、多片、组合或包装形态，不强制改选其他产品图');
     if (isDiaper && outputProfile.excludeHands && /手持|手部|掌心|夹持/.test(description)) warnings.push('参考图中的手仅用于确认产品姿态，生成结果必须移除人物和手');
     return { status: blockers.length ? 'blocked' : 'ready', blockers, warnings, checks };
   }
@@ -9375,11 +11174,15 @@
     const productForm = input.productForm || '当前所选产品';
     const genericProductSet = Boolean(input.genericProductSet);
     const isDiaper = !genericProductSet && /纸尿裤|白片/.test(`${input.productCategory || ''} ${productForm} ${input.productLabel || ''}`);
+    const diaperDescription = `${input.productForm || ''} ${input.productLabel || ''}`;
+    const isDiaperCombination = /多片|两片|组合|包装|套装/.test(diaperDescription);
     const productRule = genericProductSet
-      ? '这是由多个独立产品形态组成的套图。每个镜头绑定的产品原图是该镜头唯一产品外观依据：组合图保持组合，单片保持单片，外包装保持外包装；不同镜头之间不得串用、拆分、增减或互换产品形态，不得推测、补画或重构原图未展示的产品结构。每张原图都是当前镜头不可修改的像素身份依据。'
+      ? '这是由多个独立产品形态组成的套图。每个镜头绑定的产品原图是该镜头唯一产品身份依据：组合图保持产品数量和组成，单片保持单片，外包装保持外包装；不同镜头之间不得串用、拆分、增减或互换产品形态，不得推测、补画或重构原图未展示的产品结构。白底、透明底、拼贴或商品陈列中的整体排版不属于产品身份，若不符合现实承托，可按本镜头构图方案调整相对位置与朝向。'
       : isDiaper
-      ? '当前所选白片纸尿裤图片是唯一产品外观依据。只生成一片白片纸尿裤，不生成外包装、额外纸尿裤、人物或手；保持图片中已展示的轮廓、展开方式、正反面、花纹、腰围、腿围、厚度和长宽比例，不得推测或补画未展示结构。'
-      : '当前所选产品图片是唯一产品外观依据。只生成图片中明确展示的产品、包装面、品牌、文字、主色、轮廓和比例；不得推测、镜像、重绘或补全未展示结构。';
+      ? isDiaperCombination
+        ? '当前所选纸尿裤图片是唯一产品身份依据。严格保留原图明确展示的产品数量、单片/多片/组合/外包装形态以及每个单体自身比例；不得强制改成单片，不得拆分、增减、互换或补画产品。保持已展示的轮廓、展开方式、正反面、花纹、腰围、腿围、包装文字、厚度和长宽比例，不得推测未展示结构。白底或商品陈列中的上下叠放、间距和整体排版不等于现实摆放；若不符合重力、稳定性或承托面，应改为并排、前后错位、平放或自然叠放。'
+        : '当前所选白片纸尿裤图片是唯一产品身份依据。只生成原图明确展示的纸尿裤数量与形态，不生成额外纸尿裤、人物或手；保持图片中已展示的轮廓、展开方式、正反面、花纹、腰围、腿围、厚度和长宽比例，不得推测或补画未展示结构。白底展示角度只用于识别产品；最终摆放和镜头必须服从现实承托关系。'
+      : '当前所选产品图片是唯一产品身份依据。只生成图片中明确展示的产品数量、包装面、品牌、文字、主色、轮廓和单体比例；不得推测、镜像、重绘或补全未展示结构。白底、透明底、拼贴或商品陈列中的整体排版可按真实承托关系调整，不得把展示排版直接当作现实摆放。';
     const materialRule = isDiaper
       ? '保持纸尿裤真实的柔软无纺布、吸收芯体厚度、弹性腰围和自然弯曲折叠；服从重力，不得变成硬塑料、纸板、悬浮物或不自然的完全平板。'
       : '保持产品原有材质、厚度、折痕和受力状态，服从重力，不得悬浮或变成不相符的材质。';
@@ -9394,11 +11197,12 @@
       '若参考图含标题、花字、箭头、贴纸或广告排版，删除这些后把其占据区域恢复成与周围一致的干净背景，并保留该区域作为排版负空间；不得用产品、道具或纹理填满。',
       '参考场景图只用于环境、机位、构图、光线和空间关系。必须移除参考场景中原有的产品、包装、药瓶、药板、药片、品牌文字和标识，不得保留、复刻或改造成新产品；最终画面只允许出现当前所选产品图指定的产品。',
       productRule,
-      '产品原图是不可修改的产品像素身份层。优先保留原始产品区域的可见像素、Logo、包装文字、字块位置、图案、折痕和边缘；只在轮廓外生成背景，并在最小边缘范围补接触阴影、反射、景深与颗粒过渡。禁止生成近似文字、乱码或重画包装。',
+      '产品原图是不可修改的产品身份层。保持产品数量、SKU、Logo、包装文字、字块位置、图案、颜色、材质和每个单体自身长宽厚比例；允许依据本轮现实构图方案调整白底素材中的组合排版、相对位置和必要朝向，但不得重新设计产品、生成近似文字、乱码或虚构包装面。',
       input.relativeScaleCovered ? '产品图及同档案组合实拍已提供真实相对比例依据；产品在场景中的大小必须符合承托面、家具和拍摄距离。' : '以产品图中的长宽和厚度作为当前真实相对比例依据，并根据承托面和拍摄距离确定合理大小。',
-      '本平台的核心目标是展示当前产品。产品必须是画面唯一商业主体、第一视觉落点和最清晰区域；采用中近景或近景，让产品主体组合约占画面28%至45%，正面或当前可见面清楚可读。环境只作陪衬；禁止大面积墙面、家具、空白或道具比产品更抢眼，也禁止把产品缩小后孤零零放在远景中。可以改变参考图的景别、裁切和拍摄距离来满足主体占比。',
+      '本平台的核心目标是以现实尺度展示当前产品。产品应是清晰的商业主体，但不得套用统一固定占比：单个小型柔软产品通常约占组合外接画面的12%至20%，多件松散组合约16%至26%，单个中型包装约18%至28%，两件包装组合约22%至32%，大型落地组合约25%至35%；这些仅为起始范围，必须优先服从本轮Gemini对真实尺寸、数量、承托面、家具尺度和拍摄距离的判断。占比是整个组合的外接范围，不是每件产品各自占比。',
       materialRule,
-      '围绕产品建立真实使用情境，可用1至3件普通生活道具形成自然视觉关系，但道具不得遮挡品牌与主要可见面。产品底面必须完全落在承托面的有效边界内，禁止一半落在桌上、一半跨出桌沿，禁止悬浮；建立连续合理的接触阴影、前后遮挡、环境反射、色温、景深和边缘光。边缘锐度、颗粒和透视必须与场景一致，禁止抠图感、透明叠加、双重边缘和旧产品残影。',
+      '构图顺序固定为：先确定符合材质、重心和稳定底面的现实摆放与承托面，再确定组合尺度，再选择相机距离、景别、机位高度和俯仰角，最后让背景景别、裁切和必要的局部布局适配该镜头。禁止先锁死背景机位后把产品异常放大或硬塞进去。',
+      '围绕产品建立真实使用情境，可用1至3件普通生活道具形成自然视觉关系，但道具不得遮挡品牌与主要可见面。产品必须形成连续承重关系并完全落在承托面的有效边界内；禁止产品塔、跨出桌沿、悬浮、穿插或柔软物无支撑直立。建立合理的接触形变、接触阴影、前后遮挡、环境反射、色温、景深和边缘光。边缘锐度、颗粒和透视必须与场景一致，禁止抠图感、透明叠加、双重边缘和旧产品残影。',
       '整体呈现自然生活化的手机摄影质感，不做电商白底棚拍，不添加标题、花字、水印、促销标识或其他品牌产品。',
       `图片比例为${input.ratio || '3:4'}。`
     ].filter(Boolean).join('\n');
@@ -9415,7 +11219,7 @@
         ? ['不主动更换、增减或重排背景元素；仅在必要区域自然融入产品']
         : ['至少重构约30%的画面：允许改变景别、焦距感、相机距离、适度机位高度、裁切、产品位置、局部家具布局与道具细节；至少三处清晰差异，禁止近似复制原图'],
       productIdentityLock: ['包装文字、品牌标识、主色、轮廓、比例和已展示包装面必须保持一致', '不得推测或生成产品图中未展示的包装面'],
-      placementAndSupport: ['产品是第一视觉落点，主体组合约占画面28%至45%，环境不得抢主体', '产品必须有符合重力的承托、接触阴影、遮挡、反射和一致景深'],
+      placementAndSupport: ['产品组合占比由产品真实尺寸、数量、承托面、家具尺度和拍摄距离动态决定，不使用统一固定范围', '白底陈列排版不等于现实摆放；产品必须有符合重力的承托、接触形变、阴影、遮挡、反射和一致景深'],
       lightingIntegration: ['允许调整产品亮度、环境反射和边缘光，使产品自然融入环境', '不得以光影调整为由改变产品身份'],
       forbiddenChanges: ['必须移除参考场景中的原产品、包装、药瓶、药板、药片及其品牌文字和标识', '禁止重绘包装、镜像文字、改变 SKU、凭空增加产品或手指'],
       selectedAssets: input.selectedAssets || [],
@@ -9430,7 +11234,7 @@
     if (mode === 'custom-upload') {
       if (!productUploaded) blockers.push('缺少产品图');
       if (!sceneUploaded) blockers.push('缺少参考场景图');
-      warnings.push('系统按所选产品图自动锁定角度、可见面和身份信息，不会推测未展示结构');
+      warnings.push('系统锁定产品数量、可见身份与单体比例；白底或商品陈列排版会按现实承托关系调整，不会推测未展示结构');
     } else {
       if (!sku || sku.status !== 'ready') blockers.push('所选 SKU 档案尚未完成');
       if (!selectionPlan || selectionPlan.status !== 'ready') blockers.push(...(selectionPlan?.blockers || ['尚未完成产品与场景自动选材']));
@@ -9445,7 +11249,7 @@
       blockers: [...new Set(blockers)],
       warnings,
       checks: mode === 'custom-upload'
-        ? ['已选择产品图', '已选择参考场景图', '产品角度与可见面由所选图片自动锁定', '环境按本次背景设置执行']
+        ? ['已选择产品图', '已选择参考场景图', '产品数量、身份、可见信息与单体比例由所选图片锁定', '白底陈列排版按现实承托关系调整', '环境景别与机位按产品尺度和摆放适配']
         : ['SKU档案可用', '产品姿态与场景机位匹配', '产品身份母版可用', '自动选材置信度达标']
     };
   }
@@ -9768,7 +11572,7 @@
 
   function validateUniversalPrompt(prompt, context = {}) {
     const checks = [
-      ['unique-product', '唯一产品外观依据', '缺少唯一产品外观依据'],
+      ['unique-product', '唯一产品身份依据', '缺少唯一产品身份依据'],
       ['visible-only', '不得推测', '缺少禁止推测未展示结构规则'],
       ['scale', '真实相对比例依据', '缺少产品比例与场景尺度规则'],
       ['support', '接触阴影', '缺少真实承托与接触阴影规则'],
@@ -9780,7 +11584,8 @@
     const issues = checks.filter(([, phrase]) => !prompt.includes(phrase)).map(([code, , message]) => ({ code, message }));
     if (context.backgroundMode === 'exact' && !prompt.includes('严格复刻参考图背景')) issues.push({ code: 'exact-background', message: '缺少严格复刻背景规则' });
     if (context.backgroundMode !== 'exact' && (!prompt.includes('约70%视觉基因保留') || !prompt.includes('约30%画面重构'))) issues.push({ code: 'background-70-30', message: '缺少70/30背景规则' });
-    if (context.isDiaper && (!prompt.includes('只生成一片白片纸尿裤') || !prompt.includes('柔软无纺布'))) issues.push({ code: 'diaper-material', message: '缺少白片数量与柔软材质规则' });
+    const diaperCompositionLocked = prompt.includes('只生成一片白片纸尿裤') || prompt.includes('只生成原图明确展示的纸尿裤数量与形态') || prompt.includes('严格保留原图明确展示的产品数量');
+    if (context.isDiaper && (!diaperCompositionLocked || !prompt.includes('柔软无纺布'))) issues.push({ code: 'diaper-material', message: '缺少所选纸尿裤形态与柔软材质规则' });
     return { valid: issues.length === 0, issues };
   }
 
@@ -9919,7 +11724,7 @@
       qualityMemory ? `历史评审质量记忆（只作为纠错偏好，不得覆盖产品身份和本轮人工选择${setInner ? '；其中任何要求改变背景、家具、摆件、光线或构图的内容一律忽略' : ''}）：${qualityMemory}` : '',
       setInner
         ? `本镜头与无产品环境母版之间只允许新增当前产品、必要手势、产品接触阴影和环境反射；海报、照片、置物架、瓶罐、蜡烛、托盘、桌面纹理和墙面必须保持同一元素身份与空间关系，只随本镜头指定的变焦、裁切或轻微平移合理改变画布坐标。产品与桌面或手部必须形成连续真实的遮挡、接触阴影、反射与景深关系，禁止透明叠加、双重曝光、贴图边缘和旧产品残影。图片比例为${ratio}。`
-        : `同批方案保持统一摄影语言、生活语境与所选产品真实角度；每张都可以改变景别、相机距离、适度机位高度、裁切、主体位置和局部布局，至少产生三处清晰差异。产品必须是第一视觉落点和最清晰区域，主体组合约占画面28%至45%，环境不得抢主体。图片比例为${ratio}。`
+        : `同批方案保持统一摄影语言、生活语境与所选产品身份；每张都可以根据产品真实尺寸与摆放改变景别、相机距离、适度机位高度、裁切、主体位置和局部布局，至少产生三处清晰差异。产品必须是第一视觉落点和最清晰区域，组合占比由真实尺寸、数量、承托面、家具尺度和拍摄距离动态决定，环境不得抢主体。图片比例为${ratio}。`
     ].filter(Boolean);
     const prompt = sections.join('\n');
     const context = { combo, referenceHasHand: hasHand, setInner, blisterState };
@@ -10364,7 +12169,7 @@
 
   function initialize() {
     studio.state.prompt = {
-      sourceMode: 'library',
+      sourceMode: 'experience',
       brandId: 'bayer',
       productId: 'shiguang',
       skuId: 'bayer-shiguang-default',
@@ -10654,13 +12459,36 @@
     };
     if (preflight.status !== 'ready') throw new Error(`融合预检未通过：${preflight.blockers.join('；')}`);
     const item = sceneAsset || { id: `custom-scene-${Date.now()}`, image: sceneImage, title: '用户上传参考图', style: '自定义', format: '静置', shot: '静置' };
-    let sceneFingerprint = null;
+    state.analysisMessage = 'Gemini正在同时读取所选产品图与背景图…';
+    const toDataUrl = image => String(image || '').startsWith('data:image/') ? image : studio.services.sceneAnalysis.imageDataUrl(image);
+    const environmentDataUrl = await studio.services.experienceGeneration.promptImageDataUrl(await toDataUrl(sceneImage), '背景图');
+    let geminiPrompts;
     try {
-      sceneFingerprint = await studio.services.sceneAnalysis.analyze(item, { force: true });
+      geminiPrompts = await Promise.all(productInputs.map(async input => {
+        const payload = await studio.services.experienceGeneration.buildPrompt({
+          productDataUrl: await studio.services.experienceGeneration.promptImageDataUrl(await toDataUrl(input.image), '产品图'),
+          environmentDataUrl,
+          backgroundBrief: state.userBrief,
+          ratio: state.ratio,
+          backgroundMode: state.backgroundMode,
+          productLabel: input.label,
+          sceneLabel: sceneAsset?.title || '用户上传背景图'
+        }, { signal: state.analysisAbortController?.signal });
+        if (!payload?.prompt?.trim()) throw new Error('Gemini没有返回针对所选图片的提示词');
+        return { prompt: payload.prompt.trim(), composition: payload.composition || null, model: payload.model || '未返回模型名' };
+      }));
     } catch (error) {
-      sceneFingerprint = null;
+      if (error.code === 'public_ai_disabled') {
+        throw new Error('Gemini尚未被调用：Cloudflare AI 安全锁当前关闭。请先开启受保护的真实测试窗口；本次已停止，不会改用通用提示词。');
+      }
+      if (error.code === 'access_required' || error.code === 'access_not_configured') {
+        throw new Error(`Gemini尚未被调用：${error.message}。完成访问口令验证后重试；本次已停止，不会改用通用提示词。`);
+      }
+      throw new Error(`Gemini未能读取本次所选产品图与背景图：${error.message}。本次已停止，不会改用通用提示词。`);
     }
-    const sceneGuide = sceneFingerprint ? studio.services.sceneAnalysis.promptGuide(sceneFingerprint) : '';
+    const geminiModels = [...new Set(geminiPrompts.map(result => result.model))];
+    const sceneGuide = `Gemini（${geminiModels.join('、')}）已同时读取产品原图与背景图；产品：${productInputs.map(input => input.label).join('、')}；背景：${sceneAsset?.title || '用户上传背景图'}。`;
+    const sceneFingerprint = { environmentGuide: sceneGuide, source: 'gemini-dual-image-prompt' };
     const plan = studio.services.assetPlanner.structuredPromptPlan({
       mode: 'manual', userGoal: state.userBrief, backgroundMode: state.backgroundMode, ratio: state.ratio,
       productForm: state.mode === 'set' ? '按各镜头所选产品形态' : (productAsset?.productForm || '用户上传产品'), productLabel: state.mode === 'set' ? '每个镜头对应的唯一产品原图' : (productAsset?.label || '用户上传产品图'),
@@ -10688,16 +12516,34 @@
       const variation = state.mode === 'set'
         ? `套图镜头 ${index + 1}/${total}，当前唯一产品形态：${productInput.label}。${setShotGuides[index]}`
         : (state.mode === 'multi' ? `独立方案 ${index + 1}/${total}：在不改变产品身份与已展示面的前提下，调整构图重心和局部摆放。` : '');
-      const prompt = [plan.finalPrompt, variation].filter(Boolean).join('\n');
+      const geminiPrompt = (state.mode === 'set' ? geminiPrompts[index] : geminiPrompts[0]).prompt;
+      const executionRules = [
+        `当前所选产品：${productInput.label}；当前所选背景：${sceneAsset?.title || '用户上传背景图'}。`,
+        `图片比例：${state.ratio}。${state.backgroundMode === 'exact' ? '严格按所选背景图的空间、构图、机位与光线执行。' : '保留所选背景图的空间用途、色调、光线、材质与生活感，同时形成明显不同的新构图。'}`,
+        state.userBrief ? `用户补充要求：${state.userBrief}` : '',
+        '产品原图是唯一身份依据；产品数量、SKU、包装文字、Logo、可见面和每个单体自身比例不得改变，不得凭空增减产品。白底、透明底、拼贴或商品陈列中的整体排版、上下叠放和相对位置不属于产品身份，必须服从上方Gemini给出的现实摆放、动态占比与镜头计划。'
+      ].filter(Boolean).join('\n');
+      // Keep Gemini's image-specific description as the creative lead, then
+      // append the deterministic execution contract used by paid generation.
+      // The validator checks this contract verbatim so an otherwise useful,
+      // image-specific Gemini prompt is never blocked merely because Gemini
+      // paraphrased a safety rule.
+      const prompt = [
+        geminiPrompt,
+        variation,
+        '以下为不可省略的生图执行约束；不得用通用描述替换上方针对本次产品图与背景图的具体分析：',
+        plan.finalPrompt,
+        executionRules
+      ].filter(Boolean).join('\n');
       return {
         key: `manual-${Date.now()}-${index}`, item, sourceItem: item, variantIndex: index, selectedProps: [], sceneFingerprint: sceneFingerprint || plan,
         mode: state.mode, custom: true, config, setContext: config.setContext,
         brandId: productAsset ? state.customBrandId : 'custom', productId: productAsset ? state.customProductId : 'custom-upload', skuId: productAsset ? state.customSkuId : 'custom-upload', generationSource,
-        productReference: { image: productInput.image, label: `${productInput.label}（当前镜头不可修改的产品像素身份、可见面与比例依据）`, proportionReference: null, additionalReferences: [] },
+        productReference: { image: productInput.image, label: `${productInput.label}（当前镜头的产品数量、身份、可见信息与单体比例依据；白底陈列排版可按现实承托调整）`, proportionReference: null, additionalReferences: [] },
         prompt, text: prompt, structuredPlan: plan, preflight
       };
     });
-    state.analysisMessage = '已准备。';
+    state.analysisMessage = `Gemini 真实返回（模型：${geminiModels.join('、')}），已读取所选产品图与背景图，并生成${state.mode === 'set' ? productInputs.length + '条' : '本次'}专属提示词。`;
     clearGeneratedImages();
   }
 
@@ -10901,6 +12747,10 @@
 
   function render(container) {
     const state = studio.state.prompt;
+    if (state.sourceMode === 'experience') {
+      studio.features.experience.render(container);
+      return;
+    }
     const materials = filteredMaterials();
     const props = filteredProps();
     const catalog = studio.data.platformCatalog;
@@ -10908,7 +12758,7 @@
     if (!productsForBrand.some(item => item.id === state.productId)) state.productId = productsForBrand[0]?.id || '';
     const skusForProduct = catalog.skus.filter(item => item.productId === state.productId);
     if (!skusForProduct.some(item => item.id === state.skuId)) state.skuId = skusForProduct[0]?.id || '';
-    const sourceMode = `<section class="source-mode compact"><span>素材来源</span><div class="segmented-control"><button class="pill ${state.sourceMode === 'library' ? 'active' : ''}" data-source-mode="library">库内自动</button><button class="pill ${state.sourceMode === 'custom' ? 'active' : ''}" data-source-mode="custom">手动选图 / 上传</button></div></section>`;
+    const sourceMode = `<section class="creation-task-switcher"><div><b>选择创作方式</b><span>每次只显示当前任务需要的设置</span></div><div class="creation-task-grid"><button class="creation-task" data-source-mode="experience"><b>参考成片换背景</b><span>上传带产品成片，只修改背景</span></button><button class="creation-task ${state.sourceMode === 'custom' ? 'active' : ''}" data-source-mode="custom"><b>产品图＋背景图</b><span>分别选择两张图后重新生成</span></button><button class="creation-task ${state.sourceMode === 'library' ? 'active' : ''}" data-source-mode="library"><b>库内智能创作</b><span>使用产品库、场景库和套图能力</span></button></div></section>`;
     const productSelector = `<section class="catalog-fields creation-catalog"><label>品牌<select id="creationBrand">${catalog.brands.map(item => `<option value="${item.id}"${item.id === state.brandId ? ' selected' : ''}>${item.name}</option>`).join('')}</select></label><label>产品<select id="creationProduct">${productsForBrand.map(item => `<option value="${item.id}"${item.id === state.productId ? ' selected' : ''}>${item.name}</option>`).join('')}</select></label><label>SKU<select id="creationSku">${skusForProduct.map(item => `<option value="${item.id}"${item.id === state.skuId ? ' selected' : ''}>${item.name}</option>`).join('')}</select></label><button class="action primary" id="autoSelectAssets" type="button">智能自动选材</button></section>`;
     container.innerHTML = `<header class="page-head"><div class="eyebrow">CREATION WORKSPACE</div><h1>创作与生图</h1><p class="subtitle">选产品，选参考图，确认后生成。</p></header>${sourceMode}
       ${state.sourceMode === 'library' ? productSelector : customUploadMarkup(state)}${selectionPlanMarkup(state)}
@@ -11004,7 +12854,7 @@
         const status = container.querySelector('#promptAnalysisStatus');
         if (!status) return;
         const seconds = Math.max(0, Math.floor((Date.now() - state.analysisStartedAt) / 1000));
-        status.textContent = `${state.analysisMessage} 已等待 ${seconds} 秒（场景分析最长约25秒）。`;
+        status.textContent = `${state.analysisMessage} 已等待 ${seconds} 秒（通常约15–30秒，最迟55秒停止）。`;
       };
       updateAnalysisTime();
       state.analysisTimer = setInterval(updateAnalysisTime, 1000);
@@ -11012,7 +12862,7 @@
     const cancelAnalysis = container.querySelector('#cancelPromptAnalysis');
     if (cancelAnalysis) cancelAnalysis.onclick = () => {
       cancelAnalysis.disabled = true;
-      state.analysisMessage = '正在取消场景分析；随后会使用70/30基础规则继续生成提示词。';
+      state.analysisMessage = '正在取消 Gemini 分析；本次将停止，不会改用通用提示词。';
       state.analysisAbortController?.abort();
     };
     container.querySelectorAll('[data-generation-mode]').forEach(button => button.onclick = () => { state.mode = button.dataset.generationMode; invalidateResults(); render(container); });
@@ -11032,7 +12882,21 @@
     container.querySelector('#clearPromptWorkspace').onclick = () => { state.selectedSceneIds.clear(); state.selectedPropIds.clear(); state.autoSelectedPropIds.clear(); state.results = []; state.selectionPlan = null; state.structuredPlan = null; if (state.sourceMode === 'custom') { state.customProductDataUrl = ''; state.customSceneDataUrl = ''; state.customProductUploadMessage = ''; state.customSceneUploadMessage = ''; state.customProductAssetId = ''; state.customSceneId = ''; state.userBrief = ''; } state.analysisMessage = ''; clearGeneratedImages(); render(container); };
     container.querySelector('#buildPrompts').onclick = async () => {
       if (state.sourceMode === 'custom') {
-        try { state.analysisRunning = true; state.analysisMessage = '正在准备产品与场景关系…'; render(container); await customStructuredPlan(state); } catch (error) { alert(error.message); } finally { state.analysisRunning = false; render(container); }
+        state.analysisRunning = true;
+        state.analysisAbortController = new AbortController();
+        state.analysisStartedAt = Date.now();
+        state.analysisMessage = 'Gemini正在同时读取所选产品图与背景图…';
+        render(container);
+        try { await customStructuredPlan(state); }
+        catch (error) { alert(error.code === 'aborted' || error.name === 'AbortError' ? '已取消 Gemini 分析；本次未生成通用提示词。' : error.message); }
+        finally {
+          state.analysisRunning = false;
+          state.analysisAbortController = null;
+          state.analysisStartedAt = 0;
+          if (state.analysisTimer) clearInterval(state.analysisTimer);
+          state.analysisTimer = null;
+          render(container);
+        }
         return;
       }
       if (!state.selectedSceneIds.size) return alert('请先选择一张场景参考素材');
@@ -11116,7 +12980,9 @@
     const statuses = [
       health.localGenerationMock ? '本地主流程模拟（零费用）' : '',
       health.versionWarning ? health.versionWarning : '',
-      health.geminiConfigured ? 'Gemini 已配置' : 'Gemini 未配置',
+      health.geminiConfigured
+        ? (health.publicAiEnabled || health.localGenerationMock ? 'Gemini 已配置且可调用' : 'Gemini 密钥已配置，但 AI 安全锁关闭（当前不会调用）')
+        : 'Gemini 未配置',
       health.openaiConfigured ? 'GPT Image 已配置' : 'GPT Image 未配置',
       health.quotaConfigured ? '额度存储已配置' : '额度存储未配置',
       health.atomicQuotaConfigured ? '原子额度已配置' : '原子额度未配置',
@@ -11427,7 +13293,7 @@
         : '没有额外道具候选时，保留场景参考中已经存在且可识别的普通生活物件类别、数量级与疏密；禁止新增参考图中不存在的物件类别、品牌物品或用途不明物体。';
       const backgroundInstruction = exactBackground
         ? '客户要求优先：严格复刻参考图背景，保持完全相同的机位、裁切、空间分区、物件类别与数量、摆放、材质、光线、景深和生活痕迹；禁止主动增减、替换或重排背景元素。'
-        : '场景执行约70%视觉基因保留、约30%画面重构：保留场景用途、整体色调、光线方向与软硬、材质气质、生活感/精致感/素人感、空间层次和真实摄影质感；允许改变景别、焦距感、相机距离、适度机位高度、裁切、产品位置和局部家具布局，至少产生三处一眼可见的差异。产品必须是第一视觉落点和最清晰区域，主体组合约占画面28%至45%，禁止只在原图上缩小粘贴产品。';
+        : '场景执行约70%视觉基因保留、约30%画面重构：保留场景用途、整体色调、光线方向与软硬、材质气质、生活感/精致感/素人感、空间层次和真实摄影质感；先按产品真实尺寸与摆放确定承托面、组合尺度和相机，再调整背景景别、焦距感、相机距离、适度机位高度、裁切、产品位置和局部家具布局，至少产生三处一眼可见的差异。产品必须是第一视觉落点和最清晰区域，组合占比由真实尺寸、数量、承托面、家具尺度和拍摄距离动态决定，禁止只在原图上缩小粘贴产品。';
       const supportInstruction = exactBackground
         ? '只需在原产品位置附近形成可用承托区，禁止为了后续产品清空大半桌面或画面。'
         : '只需在中央或下部形成约25%至35%的分散可用承托区，禁止为了后续产品清空大半桌面。';
@@ -11992,10 +13858,10 @@
     const products = [{ id: 'all', name: '全部产品' }, ...studio.data.platformCatalog.products, { id: 'custom-upload', name: '临时产品' }];
     const options = (items, selected) => items.map(item => `<option value="${item.id}"${item.id === selected ? ' selected' : ''}>${item.name}</option>`).join('');
     container.innerHTML = `<header class="page-head"><div class="eyebrow">UNIFIED HISTORY</div><h1>统一历史</h1><p class="subtitle">查看、评分和验收生成结果。</p></header>
-      <section class="history-filters"><label>品牌<select data-history-filter="brandId">${options(brands, state.filters.brandId)}</select></label><label>产品<select data-history-filter="productId">${options(products, state.filters.productId)}</select></label><label>生成方式<select data-history-filter="generationSource"><option value="all">全部方式</option><option value="library-smart"${state.filters.generationSource === 'library-smart' ? ' selected' : ''}>库内智能生成</option><option value="manual-library"${state.filters.generationSource === 'manual-library' ? ' selected' : ''}>手动库内选图</option><option value="manual-upload"${state.filters.generationSource === 'manual-upload' ? ' selected' : ''}>手动上传</option><option value="custom-upload"${state.filters.generationSource === 'custom-upload' ? ' selected' : ''}>旧版自定义上传</option></select></label><label>评分状态<select data-history-filter="rating"><option value="all">全部状态</option><option value="rated"${state.filters.rating === 'rated' ? ' selected' : ''}>已评分</option><option value="unrated"${state.filters.rating === 'unrated' ? ' selected' : ''}>待评分</option></select></label></section>
+      <section class="history-filters"><label>品牌<select data-history-filter="brandId">${options(brands, state.filters.brandId)}</select></label><label>产品<select data-history-filter="productId">${options(products, state.filters.productId)}</select></label><label>生成方式<select data-history-filter="generationSource"><option value="all">全部方式</option><option value="reference-background-edit"${state.filters.generationSource === 'reference-background-edit' ? ' selected' : ''}>参考成片换背景</option><option value="library-smart"${state.filters.generationSource === 'library-smart' ? ' selected' : ''}>库内智能生成</option><option value="manual-library"${state.filters.generationSource === 'manual-library' ? ' selected' : ''}>手动库内选图</option><option value="manual-upload"${state.filters.generationSource === 'manual-upload' ? ' selected' : ''}>手动上传</option><option value="custom-upload"${state.filters.generationSource === 'custom-upload' ? ' selected' : ''}>旧版自定义上传</option></select></label><label>评分状态<select data-history-filter="rating"><option value="all">全部状态</option><option value="rated"${state.filters.rating === 'rated' ? ' selected' : ''}>已评分</option><option value="unrated"${state.filters.rating === 'unrated' ? ' selected' : ''}>待评分</option></select></label></section>
       <div class="history-summary"><div><b>${state.total || state.reviews.length}</b><span>共享历史总数</span></div><div><b>${average}</b><span>当前已加载记录中 ${rated.length} 张已评分</span></div><button class="action" id="reloadHistory" ${state.loading ? 'disabled' : ''}>${state.loading ? '读取中…' : '刷新历史'}</button></div>
       ${state.error ? `<div class="validation-error">${studio.utils.escapeHtml(state.error)}</div>` : ''}
-      ${filtered.length ? `<section class="history-grid">${filtered.map(review => { const meta = inferred(review); const brand = brands.find(item => item.id === meta.brandId)?.name || meta.brandId; const product = products.find(item => item.id === meta.productId)?.name || meta.productId; const sourceLabel = ({ 'library-smart': '库内智能生成', 'manual-library': '手动库内选图', 'manual-upload': '手动上传', 'custom-upload': '旧版自定义上传' })[meta.generationSource] || meta.generationSource; const qa = review.qaStatus || 'pending'; return `<article class="history-card">${reviewImage(review) ? `<img src="${studio.utils.escapeHtml(reviewImage(review))}" alt="历史生成图片" loading="lazy">` : '<div class="history-image-missing">等待同步</div>'}<div class="history-card-body"><div class="history-badges"><div class="history-score">${Number(review.rating) > 0 ? `${review.rating}/5` : '待评分'}</div><div class="history-qa ${qa}">${qa === 'approved' ? '已通过' : (qa === 'rejected' ? '未通过' : '待验收')}</div></div><b>${studio.utils.escapeHtml(brand)} · ${studio.utils.escapeHtml(product)}</b><span>${studio.utils.escapeHtml(sourceLabel)} · ${studio.utils.escapeHtml(review.combo || '未分类')}</span><span>${studio.utils.escapeHtml(review.visualStyle || '')} · ${studio.utils.escapeHtml(review.sceneId || '')}</span><div class="tags">${(review.tags || []).map(tag => `<span class="tag">${studio.utils.escapeHtml(tag)}</span>`).join('')}</div>${review.note ? `<p>${studio.utils.escapeHtml(review.note)}</p>` : ''}<details><summary>查看提示词</summary><p>${studio.utils.escapeHtml(review.prompt || '')}</p></details></div></article>`; }).join('')}</section>${state.hasMore ? `<div class="history-load-more"><button class="action" id="loadMoreHistory" ${state.loading ? 'disabled' : ''}>加载更多</button></div>` : ''}` : `<div class="empty">${state.loading ? '正在读取…' : (state.reviews.length ? '没有符合条件的记录。' : '暂无生成记录。')}</div>`}`;
+      ${filtered.length ? `<section class="history-grid">${filtered.map(review => { const meta = inferred(review); const brand = brands.find(item => item.id === meta.brandId)?.name || meta.brandId; const product = products.find(item => item.id === meta.productId)?.name || meta.productId; const sourceLabel = ({ 'reference-background-edit': '参考成片换背景', 'library-smart': '库内智能生成', 'manual-library': '手动库内选图', 'manual-upload': '手动上传', 'custom-upload': '旧版自定义上传' })[meta.generationSource] || meta.generationSource; const qa = review.qaStatus || 'pending'; return `<article class="history-card">${reviewImage(review) ? `<img src="${studio.utils.escapeHtml(reviewImage(review))}" alt="历史生成图片" loading="lazy">` : '<div class="history-image-missing">等待同步</div>'}<div class="history-card-body"><div class="history-badges"><div class="history-score">${Number(review.rating) > 0 ? `${review.rating}/5` : '待评分'}</div><div class="history-qa ${qa}">${qa === 'approved' ? '已通过' : (qa === 'rejected' ? '未通过' : '待验收')}</div></div><b>${studio.utils.escapeHtml(brand)} · ${studio.utils.escapeHtml(product)}</b><span>${studio.utils.escapeHtml(sourceLabel)} · ${studio.utils.escapeHtml(review.combo || '未分类')}</span><span>${studio.utils.escapeHtml(review.visualStyle || '')} · ${studio.utils.escapeHtml(review.sceneId || '')}</span><div class="tags">${(review.tags || []).map(tag => `<span class="tag">${studio.utils.escapeHtml(tag)}</span>`).join('')}</div>${review.note ? `<p>${studio.utils.escapeHtml(review.note)}</p>` : ''}<details><summary>查看提示词</summary><p>${studio.utils.escapeHtml(review.prompt || '')}</p></details></div></article>`; }).join('')}</section>${state.hasMore ? `<div class="history-load-more"><button class="action" id="loadMoreHistory" ${state.loading ? 'disabled' : ''}>加载更多</button></div>` : ''}` : `<div class="empty">${state.loading ? '正在读取…' : (state.reviews.length ? '没有符合条件的记录。' : '暂无生成记录。')}</div>`}`;
     container.querySelectorAll('[data-history-filter]').forEach(select => select.onchange = () => { state.filters[select.dataset.historyFilter] = select.value; render(container); });
     container.querySelector('#reloadHistory').onclick = () => load(container);
     const loadMore = container.querySelector('#loadMoreHistory');
@@ -12018,6 +13884,8 @@
       productUploadMessage: '',
       environmentUploadMessage: '',
       prompt: '',
+      backgroundBrief: '',
+      ratio: '3:4',
       feedback: '',
       result: null,
       running: false,
@@ -12026,9 +13894,16 @@
       waitStartedAt: 0,
       waitTimer: null,
       liveMode,
-      message: liveMode ? '真实接口模式：生成图片会调用 Gemini/OpenAI 并计入每日额度。' : '产品图必填；居家环境参考图可选。上传图片不会写入素材库或历史记录。',
-      usage: null
+      message: liveMode ? '真实接口模式：换背景直接调用 GPT 图像编辑；每次结果都会同步到统一历史。' : '本地预览模式：上传图片不会写入素材库，模拟结果也不会写入正式历史。',
+      usage: null,
+      historySync: '',
+      historySyncMessage: '',
+      lastHistoryRecord: null
     };
+  }
+
+  function taskSwitcher() {
+    return `<section class="creation-task-switcher"><div><b>选择创作方式</b><span>每次只显示当前任务需要的设置</span></div><div class="creation-task-grid"><button class="creation-task active" data-source-mode="experience"><b>参考成片换背景</b><span>上传带产品成片，只修改背景</span><em>推荐</em></button><button class="creation-task" data-source-mode="custom"><b>产品图＋背景图</b><span>分别选择两张图后重新生成</span></button><button class="creation-task" data-source-mode="library"><b>库内智能创作</b><span>使用产品库、场景库和套图能力</span></button></div></section>`;
   }
 
   function imagePreview(dataUrl, label, inputId, required, uploadMessage = '') {
@@ -12040,55 +13915,72 @@
     </label>`;
   }
 
-  async function archiveResult(payload, result, prompt, feedback) {
-    if (!result?.b64Json) return false;
+  function historyRecord(payload, result, prompt, feedback) {
+    if (!result?.b64Json) return null;
     const createdAt = new Date().toISOString();
-    await studio.services.reviewHistory.save({
+    return {
       id: `experience-${payload.requestId || globalThis.crypto?.randomUUID?.() || Date.now()}`,
       rating: 0,
       tags: [],
       note: feedback || '',
       prompt,
-      combo: '体验生图',
+      combo: '参考成片换背景',
       presentation: feedback ? '按意见再次生成' : '首次生成',
       visualStyle: '居家背景改图',
       mode: 'experience',
       brandId: 'custom',
       productId: 'custom-upload',
       skuId: 'custom-upload',
-      generationSource: 'custom-upload',
-      sceneId: 'temporary-experience',
+      generationSource: 'reference-background-edit',
+      sceneId: 'uploaded-published-reference',
       model: payload.model || 'gpt-image-2',
       quality: 'medium',
       references: [],
       createdAt,
       imageDataUrl: `data:${result.mimeType || 'image/jpeg'};base64,${result.b64Json}`
-    });
-    if (studio.state.history) studio.state.history.attempted = false;
-    return true;
+    };
   }
 
   function resultMarkup(state) {
     if (!state.result) return '';
     const src = `data:${state.result.mimeType || 'image/jpeg'};base64,${state.result.b64Json}`;
-    return `<section class="experience-result"><div class="history-heading"><div><h2>本次结果</h2><p>可以填写改进意见再次生图；再次生成计入每日15张额度。</p></div></div>
+    const retentionCopy = state.historySync === 'mock'
+      ? '这是本地模拟预览，不会写入正式历史。真实生成时，每张结果都会自动进入统一历史。'
+      : '无论效果如何都会保留到统一历史；再次生成也会新增一条记录。';
+    const syncMarkup = state.historySync === 'synced'
+      ? '<span class="history-sync synced">✓ 已同步到统一历史</span>'
+      : state.historySync === 'pending'
+        ? `<span class="history-sync pending">等待同步到统一历史</span><button class="action" id="retryExperienceHistory" type="button">重新同步</button>`
+        : '';
+    return `<section class="experience-result"><div class="history-heading"><div><h2>本次结果</h2><p>${retentionCopy}</p></div><div class="history-sync-actions">${syncMarkup}</div></div>
       <div class="experience-result-layout"><figure class="generated-card"><img src="${src}" alt="体验生图结果"><figcaption><b>居家背景改图</b><a class="action" href="${src}" download="experience-image.jpg">下载原图</a></figcaption></figure>
       <div class="experience-feedback"><label><b>改进意见</b><textarea id="experienceFeedback" rows="7" placeholder="例如：背景换成浅灰色沙发，光线更自然。">${studio.utils.escapeHtml(state.feedback)}</textarea></label><button class="action primary" id="experienceRegenerate" ${state.running ? 'disabled' : ''}>${state.running ? '正在生成…' : '再次生成'}</button></div></div></section>`;
   }
 
   function render(container) {
     const state = studio.state.experience;
-    container.innerHTML = `<header class="page-head"><div class="eyebrow">TEMPORARY EXPERIENCE</div><h1>体验生图</h1><p class="subtitle">上传真实产品图，让 AI 只把背景改成合理的居家环境。产品原始角度、形状、比例、包装、品牌与文字必须保持不变。</p></header>
-      <section class="experience-panel"><div class="experience-note"><b>${state.liveMode ? '真实接口模式' : '本地模拟模式'}</b><span>坚持 AI 改图，不做抠图、合成、边缘修整或自动异常判断；每位用户每天15张，全站每天30张。</span></div>
-      <div class="experience-upload-grid">${imagePreview(state.productDataUrl, '产品原图', 'experienceProduct', true, state.productUploadMessage)}${imagePreview(state.environmentDataUrl, '居家环境参考', 'experienceEnvironment', false, state.environmentUploadMessage)}</div>
-      <div class="experience-actions"><span id="experienceStatus">${studio.utils.escapeHtml(state.message)}</span><button class="action" id="experienceBuildPrompt" ${state.promptRunning || !state.productDataUrl ? 'disabled' : ''}>${state.promptRunning ? 'Gemini 正在生成…' : 'Gemini 生成提示词'}</button>${state.running || state.promptRunning ? '<button class="action" id="cancelExperience" type="button">取消等待</button>' : ''}</div>
-      <label class="experience-prompt"><b>可编辑提示词</b><textarea id="experiencePrompt" rows="10" placeholder="上传产品图后，让 Gemini 生成提示词；也可以直接填写。">${studio.utils.escapeHtml(state.prompt)}</textarea></label>
-      <div class="experience-submit"><span>${state.usage ? `今日已用：个人 ${state.usage.userDaily}/15 · 全站 ${state.usage.siteDaily}/30` : '生成1张；失败不会自动重试。'}</span><button class="action primary" id="experienceGenerate" ${state.running || !state.productDataUrl || !state.prompt.trim() ? 'disabled' : ''}>${state.running ? 'GPT 正在改图…' : '生成居家背景图'}</button></div></section>
+    container.innerHTML = `<header class="page-head"><div class="eyebrow">CREATION WORKSPACE</div><h1>创作与生图</h1><p class="subtitle">选择一种任务，页面只显示当前需要的步骤。</p></header>${taskSwitcher()}
+      <section class="experience-panel streamlined"><div class="experience-note"><b>参考成片换背景</b><span>上传已经发布的带产品图片或供应商实拍图。产品主体、角度、包装、Logo和文字保持不变，只修改背景。</span></div>
+      <div class="experience-primary-upload">${imagePreview(state.productDataUrl, '带产品参考成片', 'experienceProduct', true, state.productUploadMessage)}</div>
+      <div class="experience-simple-fields"><label><b>背景要求（可选）</b><textarea id="experienceBackgroundBrief" rows="3" placeholder="例如：换成自然光卧室，保留暖色调和真实生活感。">${studio.utils.escapeHtml(state.backgroundBrief)}</textarea></label><label><b>图片比例</b><span class="experience-fixed-ratio">3:4（固定）</span></label></div>
+      <details class="advanced-panel"><summary>更多设置 · 环境参考与提示词</summary><div class="advanced-panel-body"><div class="experience-optional-upload">${imagePreview(state.environmentDataUrl, '居家环境参考', 'experienceEnvironment', false, state.environmentUploadMessage)}</div><div class="experience-actions"><button class="action" id="experienceBuildPrompt" ${state.promptRunning || !state.productDataUrl ? 'disabled' : ''}>${state.promptRunning ? 'Gemini 正在优化…' : '使用 Gemini 优化提示词（可选）'}</button></div><label class="experience-prompt"><b>可编辑提示词（可选）</b><textarea id="experiencePrompt" rows="8" placeholder="留空时直接使用背景要求调用 GPT 生图；如需更细控制，可手动填写或使用上方可选优化。">${studio.utils.escapeHtml(state.prompt)}</textarea></label></div></details>
+      <div class="experience-actions"><span id="experienceStatus">${studio.utils.escapeHtml(state.message)}</span>${state.running || state.promptRunning ? '<button class="action" id="cancelExperience" type="button">取消等待</button>' : ''}</div>
+      <div class="experience-submit"><span>${state.usage ? `今日已用：个人 ${state.usage.userDaily}/15 · 全站 ${state.usage.siteDaily}/30` : '生成结果将自动同步到统一历史。'}</span><button class="action primary" id="experienceGenerate" ${state.running || state.promptRunning || !state.productDataUrl ? 'disabled' : ''}>${state.running ? '正在换背景…' : '生成换背景图片'}</button></div></section>
       ${resultMarkup(state)}`;
+
+    container.querySelectorAll('[data-source-mode]').forEach(button => {
+      button.onclick = () => {
+        const nextMode = button.dataset.sourceMode;
+        if (nextMode === 'experience') return;
+        studio.state.prompt.sourceMode = nextMode;
+        studio.features.promptWorkspace.invalidateResults();
+        studio.features.promptWorkspace.render(container);
+      };
+    });
 
     if (state.waitTimer) clearInterval(state.waitTimer);
     if (state.running || state.promptRunning) {
-      const timeoutSeconds = state.promptRunning ? 25 : 180;
+      const timeoutSeconds = state.promptRunning ? 55 : 180;
       const updateWait = () => {
         const status = container.querySelector('#experienceStatus');
         if (!status) return;
@@ -12125,6 +14017,9 @@
           state.prompt = '';
           state.feedback = '';
           state.result = null;
+          state.historySync = '';
+          state.historySyncMessage = '';
+          state.lastHistoryRecord = null;
           state.message = `${label}已载入；原图仅保存在当前页面内存中。`;
         } catch (error) {
           state.message = error.message;
@@ -12134,17 +14029,54 @@
       input.onchange = () => handleFile(input.files?.[0]);
       studio.utils.bindFileDropZone(input.closest('.experience-upload'), handleFile);
     }
-    bindUpload('experienceProduct', 'productDataUrl', '产品图');
+    bindUpload('experienceProduct', 'productDataUrl', '带产品参考成片');
     bindUpload('experienceEnvironment', 'environmentDataUrl', '环境参考图');
 
+    container.querySelector('#experienceBackgroundBrief').oninput = event => {
+      state.backgroundBrief = event.target.value;
+      state.prompt = '';
+    };
     container.querySelector('#experiencePrompt').oninput = event => {
       state.prompt = event.target.value;
       state.result = null;
       const generateButton = container.querySelector('#experienceGenerate');
-      if (generateButton) generateButton.disabled = state.running || !state.productDataUrl || !state.prompt.trim();
+      if (generateButton) generateButton.disabled = state.running || !state.productDataUrl;
       container.querySelector('.experience-result')?.remove();
     };
+
+    function promptWithBrief(prompt) {
+      const brief = state.backgroundBrief.trim();
+      return [String(prompt || '').trim(), brief ? `用户指定的背景要求：${brief}` : ''].filter(Boolean).join('\n\n');
+    }
+
+    function directEditPrompt() {
+      const brief = state.backgroundBrief.trim();
+      return [
+        '第一张图是唯一产品身份依据：严格保持产品数量、SKU、单体长宽厚比例、包装结构、颜色、Logo、文字、图案和所有可见细节，不得重绘、改字、增删或替换产品。若原图是白底、透明底、拼贴或商品陈列，其整体排版、上下叠放、间距与相对位置可以按现实承托关系调整，不得直接当作真实场景姿态。',
+        state.environmentDataUrl ? '环境参考图只用于背景材质、空间和氛围，不得把其中的物体或产品复制到主体上。' : '',
+        brief ? `背景修改要求：${brief}` : '生成自然真实、透视与光线一致的居家背景。先确定产品现实摆放和承托面，再确定动态尺度与镜头，最后让背景景别、裁切和局部布局适配产品。',
+        '禁止套用统一产品占比，禁止产品塔、悬浮、穿插、柔软物无支撑直立，以及添加花字、水印、边框、额外产品、人物或广告排版。'
+      ].filter(Boolean).join('\n');
+    }
+
+    async function buildPrompt(signal) {
+      const payload = await studio.services.experienceGeneration.buildPrompt({
+        productDataUrl: await studio.services.experienceGeneration.promptImageDataUrl(state.productDataUrl, '产品图'),
+        environmentDataUrl: state.environmentDataUrl ? await studio.services.experienceGeneration.promptImageDataUrl(state.environmentDataUrl, '环境参考图') : ''
+      }, { signal });
+      state.prompt = promptWithBrief(payload.prompt);
+      return payload;
+    }
+
     container.querySelector('#experienceBuildPrompt').onclick = async () => {
+      let accessHeaders;
+      try {
+        accessHeaders = await studio.services.experienceGeneration.authorizationHeaders();
+      } catch (error) {
+        state.message = error.message;
+        render(container);
+        return;
+      }
       state.promptRunning = true;
       state.abortController = new AbortController();
       state.waitStartedAt = Date.now();
@@ -12152,8 +14084,11 @@
       state.message = 'Gemini 正在根据产品摆放角度选择沙发、地板或床边等合理居家环境…';
       render(container);
       try {
-        const payload = await studio.services.experienceGeneration.buildPrompt({ productDataUrl: state.productDataUrl, environmentDataUrl: state.environmentDataUrl }, { signal: state.abortController.signal });
-        state.prompt = payload.prompt || '';
+        const payload = await studio.services.experienceGeneration.buildPrompt({
+          productDataUrl: await studio.services.experienceGeneration.promptImageDataUrl(state.productDataUrl, '产品图'),
+          environmentDataUrl: state.environmentDataUrl ? await studio.services.experienceGeneration.promptImageDataUrl(state.environmentDataUrl, '环境参考图') : ''
+        }, { signal: state.abortController.signal, accessHeaders });
+        state.prompt = promptWithBrief(payload.prompt);
         state.message = payload.mock ? '本地模拟提示词已生成；未调用 Gemini。' : 'Gemini 提示词已生成，可以编辑后再生图。';
       } catch (error) {
         state.message = error.message;
@@ -12165,24 +14100,48 @@
     };
 
     async function generate(feedback) {
+      let accessHeaders;
+      try {
+        accessHeaders = await studio.services.experienceGeneration.authorizationHeaders();
+      } catch (error) {
+        state.message = error.message;
+        render(container);
+        return;
+      }
       state.running = true;
       state.abortController = new AbortController();
       state.waitStartedAt = Date.now();
       state.message = feedback ? '正在按改进意见再次生成；原产品图仍是最高优先级基准…' : '正在把产品放入合理的居家环境…';
       render(container);
       try {
+        if (!state.prompt.trim()) state.prompt = directEditPrompt();
         const previousImageDataUrl = state.result ? `data:${state.result.mimeType || 'image/jpeg'};base64,${state.result.b64Json}` : '';
         const payload = await studio.services.experienceGeneration.generate({
           productDataUrl: state.productDataUrl,
           environmentDataUrl: state.environmentDataUrl,
           previousImageDataUrl,
           prompt: state.prompt,
-          feedback
-        }, { signal: state.abortController.signal });
+          feedback,
+          ratio: '3:4'
+        }, { signal: state.abortController.signal, accessHeaders });
         state.result = payload.images?.[0] || null;
         state.usage = payload.usage || state.usage;
-        await archiveResult(payload, state.result, state.prompt, feedback);
-        state.message = payload.mock ? '预览完成。' : '生成完成。';
+        state.lastHistoryRecord = historyRecord(payload, state.result, state.prompt, feedback);
+        if (payload.mock) {
+          state.historySync = 'mock';
+          state.message = '本地模拟预览完成；模拟图不会写入正式历史。';
+        } else if (state.lastHistoryRecord) {
+          try {
+            await studio.services.reviewHistory.save(state.lastHistoryRecord);
+            state.historySync = 'synced';
+            state.historySyncMessage = '';
+            state.message = '生成完成，已同步到统一历史。';
+          } catch (historyError) {
+            state.historySync = 'pending';
+            state.historySyncMessage = historyError.message || '历史同步失败';
+            state.message = '图片已生成；历史暂未同步，可点击“重新同步”。';
+          }
+        }
       } catch (error) {
         state.message = error.message;
       } finally {
@@ -12193,6 +14152,22 @@
     }
 
     container.querySelector('#experienceGenerate').onclick = () => generate('');
+    const retryHistory = container.querySelector('#retryExperienceHistory');
+    if (retryHistory) retryHistory.onclick = async () => {
+      if (!state.lastHistoryRecord) return;
+      retryHistory.disabled = true;
+      try {
+        await studio.services.reviewHistory.save(state.lastHistoryRecord);
+        state.historySync = 'synced';
+        state.historySyncMessage = '';
+        state.message = '已重新同步到统一历史。';
+      } catch (error) {
+        state.historySync = 'pending';
+        state.historySyncMessage = error.message || '历史同步失败';
+        state.message = `仍未同步：${state.historySyncMessage}`;
+      }
+      render(container);
+    };
     const feedback = container.querySelector('#experienceFeedback');
     if (feedback) feedback.oninput = event => { state.feedback = event.target.value; };
     const regenerate = container.querySelector('#experienceRegenerate');
@@ -12306,7 +14281,7 @@
   }
 
   function renderShell() {
-    app.innerHTML = `<div class="shell"><aside class="sidebar"><div class="brand"><small>MULTI-BRAND VISUAL STUDIO</small>品牌图片<br>生成平台</div><nav class="nav">${views.map(([key, step, label]) => `<button data-view="${key}"><span class="step">${step}</span>${label}</button>`).join('')}</nav><div class="ai-lock-note"><b>AI 安全锁</b><span>当前保持关闭</span></div>${studio.services.accessSession.requiresLogin() ? '<button class="session-logout" id="sessionLogout" type="button">退出登录</button>' : ''}</aside><main class="content" id="view"></main></div>`;
+    app.innerHTML = `<div class="shell"><aside class="sidebar"><div class="brand"><small>MULTI-BRAND VISUAL STUDIO</small>品牌图片<br>生成平台</div><nav class="nav">${views.map(([key, step, label]) => `<button data-view="${key}"><span class="step">${step}</span>${label}</button>`).join('')}</nav><div class="ai-lock-note"><b>AI 接口状态</b><span>以创作页检测结果为准</span></div>${studio.services.accessSession.requiresLogin() ? '<button class="session-logout" id="sessionLogout" type="button">退出登录</button>' : ''}</aside><main class="content" id="view"></main></div>`;
     view = app.querySelector('#view');
     app.querySelectorAll('[data-view]').forEach(button => button.onclick = () => {
       studio.state.currentView = button.dataset.view;
