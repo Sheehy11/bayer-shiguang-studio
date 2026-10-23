@@ -315,6 +315,8 @@ textarea { width: 100%; min-height: 180px; resize: vertical; padding: 14px; bord
 .history-card details p { max-height: 180px; overflow: auto; white-space: pre-wrap; }
 .experience-panel, .experience-result { margin-top: 24px; padding: 24px; border: 1px solid var(--line); border-radius: 16px; background: rgba(255,255,255,.72); }
 .creation-task-switcher { display: grid; gap: 14px; margin-top: 24px; padding: 18px; border: 1px solid var(--line); border-radius: 16px; background: rgba(255,255,255,.66); }
+.creation-task-switcher.compact { padding: 14px; }
+.creation-task-grid.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .creation-task-switcher > div:first-child { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
 .creation-task-switcher > div:first-child span { color: var(--muted); font-size: 12px; }
 .creation-task-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
@@ -323,6 +325,14 @@ textarea { width: 100%; min-height: 180px; resize: vertical; padding: 14px; bord
 .creation-task em { position: absolute; top: 9px; right: 9px; padding: 3px 7px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font-size: 10px; font-style: normal; font-weight: 800; }
 .creation-task.active { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); background: var(--accent-soft); }
 .experience-panel.streamlined { display: grid; gap: 18px; max-width: 940px; }
+.experience-upload-grid.compact { margin: 0; }
+.presentation-source { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 0; padding: 14px; border: 1px solid var(--line); border-radius: 14px; }
+.presentation-source legend { padding: 0 7px; font-weight: 800; }
+.presentation-option { position: relative; display: grid; gap: 4px; padding: 13px 13px 13px 38px; border: 1px solid var(--line); border-radius: 12px; background: #fff; cursor: pointer; }
+.presentation-option.active { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); background: var(--accent-soft); }
+.presentation-option input { position: absolute; top: 15px; left: 14px; }
+.presentation-option span, .fresh-variation span { color: var(--muted); font-size: 12px; line-height: 1.5; }
+.fresh-variation { display: grid; gap: 7px; padding: 13px; border: 1px solid var(--line); border-radius: 12px; background: var(--accent-soft); }
 .experience-primary-upload { max-width: 560px; }
 .experience-simple-fields { display: grid; grid-template-columns: minmax(0, 1fr) 150px; gap: 14px; align-items: start; }
 .experience-simple-fields label { display: grid; gap: 8px; }
@@ -336,6 +346,51 @@ textarea { width: 100%; min-height: 180px; resize: vertical; padding: 14px; bord
 .experience-note, .experience-actions, .experience-submit { display: flex; align-items: center; justify-content: space-between; gap: 16px; color: var(--muted); font-size: 12px; }
 .experience-note b { color: var(--ink); white-space: nowrap; }
 .experience-upload-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin: 20px 0; }
+.experience-upload-group { min-width: 0; padding: 14px; border: 1px solid var(--line); border-radius: 14px; background: rgba(255,255,255,.54); }
+.experience-upload-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.experience-upload-heading > div { display: grid; gap: 4px; }
+.experience-upload-heading span { color: var(--muted); font-size: 11px; line-height: 1.45; }
+.experience-upload-heading em { padding: 4px 8px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font-size: 11px; font-style: normal; font-weight: 800; white-space: nowrap; }
+.experience-upload-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.experience-upload-item { position: relative; display: grid; gap: 8px; min-width: 0; padding: 9px; border: 1px solid var(--line); border-radius: 12px; background: #fff; }
+.experience-upload-item img { width: 100%; aspect-ratio: 1 / 1; object-fit: contain; border-radius: 8px; background: #f7f4ef; }
+.experience-upload-item > div { display: grid; gap: 3px; min-width: 0; }
+.experience-upload-item b, .experience-upload-item small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.experience-upload-item small { color: var(--muted); font-size: 10px; }
+.experience-remove-image { position: absolute; top: 5px; right: 5px; display: grid; place-items: center; width: 25px; height: 25px; padding: 0; border: 1px solid rgba(0,0,0,.12); border-radius: 50%; background: rgba(255,255,255,.94); color: var(--ink); font-size: 18px; line-height: 1; cursor: pointer; }
+.experience-upload-add { min-height: 0 !important; aspect-ratio: 1 / 1; padding: 12px !important; }
+.experience-upload-add small { font-size: 10px; }
+.experience-usage-brief { display: grid; gap: 7px; }
+.experience-usage-brief > span { color: var(--muted); font-size: 11px; line-height: 1.5; }
+.experience-usage-brief textarea { min-height: 86px; }
+.experience-brief-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; align-items: end; }
+.experience-ratio-inline { display: grid; place-items: center; min-width: 64px; min-height: 46px; padding: 0 12px; border: 1px solid var(--line); border-radius: 12px; background: #fff; font-weight: 800; }
+.experience-mode { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin: 0; padding: 12px 14px; border: 1px solid var(--line); border-radius: 14px; }
+.experience-mode legend { padding: 0 7px; font-weight: 800; }
+.experience-mode > label { display: flex; align-items: center; gap: 6px; min-height: 38px; padding: 0 11px; border: 1px solid var(--line); border-radius: 10px; background: #fff; cursor: pointer; }
+.experience-mode > label:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); }
+.experience-mode-result { flex: 1 1 100%; color: var(--muted); font-size: 11px; line-height: 1.5; }
+.experience-shot-plan { display: grid; gap: 10px; padding: 14px; border: 1px solid var(--line); border-radius: 14px; background: #fbf9ff; }
+.experience-shot-plan > div:first-child { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.experience-shot-plan > div:first-child span { color: var(--muted); font-size: 12px; }
+.experience-shot-plan-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
+.experience-shot-plan article { display: grid; gap: 6px; padding: 12px; border: 1px solid #d9cfec; border-radius: 12px; background: #fff; }
+.experience-shot-plan article span, .experience-shot-plan article small { color: var(--muted); line-height: 1.45; }
+.experience-shot-plan article small { font-size: 11px; }
+.experience-output-count { margin-left: auto; }
+.experience-output-count select { border: 0; background: transparent; color: var(--ink); font: inherit; }
+.experience-set-results { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px; margin-top: 18px; }
+.experience-result-card { cursor: pointer; border: 2px solid transparent; border-radius: 14px; overflow: hidden; }
+.experience-result-card.selected { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.experience-result-card img { width: 100%; aspect-ratio: 3 / 4; object-fit: contain; background: #f7f4ef; }
+.experience-result > .experience-feedback { margin-top: 18px; grid-template-columns: minmax(220px, .65fr) minmax(280px, 1fr) auto; align-items: end; }
+
+@media (max-width: 720px) {
+  .creation-task-grid.two, .experience-upload-grid, .presentation-source, .experience-simple-fields { grid-template-columns: 1fr; }
+  .experience-upload-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .experience-brief-row, .experience-result > .experience-feedback { grid-template-columns: 1fr; }
+  .experience-output-count { margin-left: 0; }
+}
 .experience-upload { display: grid; place-items: center; min-height: 260px; padding: 16px; border: 1px dashed var(--line); border-radius: 14px; background: #fff; text-align: center; cursor: pointer; }
 .experience-upload input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
 .experience-upload img { width: 100%; height: 230px; object-fit: contain; margin-bottom: 10px; border-radius: 10px; background: #f7f4ef; }
