@@ -10766,7 +10766,8 @@
   }
 
   function isLiveMode() {
-    return new URLSearchParams(location.search).get('experienceLive') === '1';
+    const local = ['127.0.0.1', 'localhost'].includes(location.hostname);
+    return !local || new URLSearchParams(location.search).get('experienceLive') === '1';
   }
 
   function readDataUrl(file, label) {
