@@ -70,6 +70,31 @@
 })(globalThis.BayerStudio);
 
 
+(function registerUniversalProductPolicy(studio) {
+  'use strict';
+
+  studio.data.universalProductPolicy = {
+    positioning: '面向全品类消费品的小红书种草图片工作台',
+    minimumInput: 1,
+    evidenceRule: '1张图可以开始创作，但只允许使用图中已展示的产品身份、数量、结构、姿态和可见面；禁止推演、旋转或补全未展示角度。',
+    categories: [
+      { id: 'health', label: '营养健康' },
+      { id: 'mother-baby', label: '母婴用品' },
+      { id: 'beauty', label: '美妆个护' },
+      { id: 'food-beverage', label: '食品饮料' },
+      { id: 'daily-use', label: '日用消费品' },
+      { id: 'digital-small-appliance', label: '数码及小型电器' }
+    ],
+    excludedForV1: ['服饰', '大型家居'],
+    evidenceLevels: [
+      { id: 'single-view', label: '1张产品图', unlocks: '同一可见面的换背景、静置、近景和小幅构图调整' },
+      { id: 'multi-view', label: '补充侧面或俯拍图', unlocks: '对应角度和更丰富的套图镜头' },
+      { id: 'handheld', label: '补充手持图', unlocks: '真实握持、尺度和手持种草场景' }
+    ]
+  };
+})(globalThis.BayerStudio);
+
+
 (function registerMaterials(studio) {
   'use strict';
   studio.data.materials = [
@@ -10122,7 +10147,10 @@
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw requestError(payload.error || `服务请求失败（${response.status}）`, payload.code || `http_${response.status}`, payload.requestId || options.requestId, null);
+        const error = requestError(payload.error || `服务请求失败（${response.status}）`, payload.code || `http_${response.status}`, payload.requestId || options.requestId, null);
+        error.manicureCorrection = payload.manicureCorrection;
+        error.qualityPreview = payload.qualityPreview;
+        throw error;
       }
       return payload;
     } catch (error) {
@@ -10148,6 +10176,127 @@
   }
 
   studio.services.request = { requestJson, requestError, generationFailureMessage, timeouts };
+})(globalThis.BayerStudio);
+
+
+(function registerGalleryImages(studio) {
+  'use strict';
+  const cache = new Map();
+  const pending = new Map();
+  const queue = [];
+  let active = 0;
+  let cachedBytes = 0;
+  let epoch = 0;
+  const displayed = new Map();
+  if (typeof MutationObserver === 'function') {
+    new MutationObserver(() => {
+      for (const [frame, url] of displayed) {
+        if (frame.isConnected) continue;
+        URL.revokeObjectURL(url);
+        displayed.delete(frame);
+      }
+    }).observe(document.body, { childList: true, subtree: true });
+  }
+
+  function pump() {
+    while (active < 4 && queue.length) {
+      const { run, resolve, reject } = queue.shift();
+      active += 1;
+      Promise.resolve().then(run).then(resolve, reject).finally(() => { active -= 1; pump(); });
+    }
+  }
+
+  function read(key, fetchImage) {
+    if (cache.has(key)) {
+      const blob = cache.get(key);
+      cache.delete(key);
+      cache.set(key, blob);
+      return Promise.resolve(blob);
+    }
+    if (pending.has(key)) return pending.get(key);
+    const generation = epoch;
+    const task = new Promise((resolve, reject) => {
+      queue.push({ run: async () => {
+        let blob;
+        try { blob = await fetchImage(); }
+        catch (error) {
+          if ([401, 403, 404].includes(error.status)) throw error;
+          blob = await fetchImage();
+        }
+        if (!blob.size || !blob.type.startsWith('image/')) throw new Error('预览图不可用');
+        if (generation !== epoch) throw new Error('会话已结束');
+        cache.set(key, blob);
+        cachedBytes += blob.size;
+        while (cache.size > 48 || cachedBytes > 32 * 1024 * 1024) {
+          const oldest = cache.keys().next().value;
+          cachedBytes -= cache.get(oldest).size;
+          cache.delete(oldest);
+        }
+        return blob;
+      }, resolve, reject });
+      pump();
+    }).finally(() => { if (pending.get(key) === task) pending.delete(key); });
+    pending.set(key, task);
+    return task;
+  }
+
+  const callbacks = new WeakMap();
+  const observer = typeof IntersectionObserver === 'function' ? new IntersectionObserver(entries => {
+    for (const entry of entries) {
+      if (!entry.isIntersecting) continue;
+      observer.unobserve(entry.target);
+      callbacks.get(entry.target)?.();
+    }
+  }, { rootMargin: '200px' }) : null;
+
+  function mount(frame, key, fetchImage) {
+    const img = frame.querySelector('img');
+    const retry = frame.querySelector('button');
+    function fail() {
+      img.hidden = true;
+      retry.hidden = false;
+      frame.classList.remove('loading');
+    }
+    function load() {
+      if (!frame.isConnected) return;
+      retry.hidden = true;
+      frame.classList.add('loading');
+      if (!fetchImage) {
+        img.src = img.dataset.src;
+        return;
+      }
+      read(key, fetchImage).then(blob => {
+        if (!frame.isConnected) return;
+        const previous = displayed.get(frame);
+        if (previous) URL.revokeObjectURL(previous);
+        const url = URL.createObjectURL(blob);
+        displayed.set(frame, url);
+        img.src = url;
+      }, fail);
+    }
+    img.onload = () => { img.hidden = false; frame.classList.remove('loading'); };
+    img.onerror = () => {
+      if (fetchImage && cache.has(key)) {
+        cachedBytes -= cache.get(key).size;
+        cache.delete(key);
+      }
+      fail();
+    };
+    retry.onclick = load;
+    if (observer) {
+      callbacks.set(frame, load);
+      observer.observe(frame);
+    } else load();
+  }
+  function clear() {
+    epoch += 1;
+    cache.clear();
+    cachedBytes = 0;
+    pending.clear();
+    for (const url of displayed.values()) URL.revokeObjectURL(url);
+    displayed.clear();
+  }
+  studio.services.galleryImages = { mount, clear };
 })(globalThis.BayerStudio);
 
 
@@ -10320,6 +10469,58 @@
 })(globalThis.BayerStudio);
 
 
+(function registerTagBattleService(studio) {
+  'use strict';
+
+  const maxDimension = 1200;
+  const maxBytes = 650 * 1024;
+
+  function canvasBlob(canvas, quality) {
+    return new Promise((resolve, reject) => canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('图片压缩失败')), 'image/jpeg', quality));
+  }
+
+  function blobDataUrl(blob) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = () => reject(new Error('图片读取失败'));
+      reader.readAsDataURL(blob);
+    });
+  }
+
+  async function prepareImage(file) {
+    if (!file?.type?.startsWith('image/')) throw new Error('请选择图片文件');
+    const bitmap = await createImageBitmap(file);
+    const scale = Math.min(1, maxDimension / Math.max(bitmap.width, bitmap.height));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+    canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+    canvas.getContext('2d').drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    bitmap.close();
+    let blob = await canvasBlob(canvas, .82);
+    if (blob.size > maxBytes) blob = await canvasBlob(canvas, .68);
+    if (blob.size > maxBytes) blob = await canvasBlob(canvas, .52);
+    if (blob.size > maxBytes) throw new Error('图片压缩后仍过大，请先缩小图片');
+    return blobDataUrl(blob);
+  }
+
+  async function analyze(imageDataUrl, options = {}) {
+    const baseUrl = studio.services.sceneAnalysis.apiBaseUrl();
+    if (!baseUrl) throw new Error('尚未配置打标服务地址');
+    const accessHeaders = await studio.services.accessSession.authorizationHeader(baseUrl);
+    return studio.services.request.requestJson(`${baseUrl}/api/tag-battle`, {
+      method: 'POST',
+      headers: accessHeaders,
+      body: { imageDataUrl },
+      timeoutMs: studio.services.request.timeouts.prompt,
+      signal: options.signal
+    });
+  }
+
+  studio.services.tagBattle = { prepareImage, analyze };
+})(globalThis.BayerStudio);
+
+
 (function registerAccessSessionService(studio) {
   'use strict';
 
@@ -10328,7 +10529,8 @@
 
   function isLocalMock(apiBaseUrl) {
     return ['127.0.0.1', 'localhost'].includes(location.hostname)
-      && new URLSearchParams(location.search).get('experienceLive') === '1';
+      && new URLSearchParams(location.search).get('experienceLive') !== '1'
+      && apiBaseUrl === location.origin;
   }
 
   function tokenExpired(token) {
@@ -10409,7 +10611,8 @@
   }
 
   function requiresLogin() {
-    return !['127.0.0.1', 'localhost'].includes(location.hostname);
+    return !['127.0.0.1', 'localhost'].includes(location.hostname)
+      || new URLSearchParams(location.search).get('experienceLive') === '1';
   }
 
   studio.services.accessSession = { authorizationHeader, clear, storedToken, login, validate, requiresLogin };
@@ -10757,6 +10960,7 @@
   const maxTransferDimension = 4096;
   const maxPromptBytes = 450 * 1024;
   const maxPromptDimension = 1200;
+  const assetUploads = new WeakMap();
 
   function apiBaseUrl() {
     const local = ['127.0.0.1', 'localhost'].includes(location.hostname);
@@ -10880,7 +11084,7 @@
         method: 'POST',
         headers: accessHeaders,
         body: { ...body, requestId, userId: studio.services.imageGeneration.anonymousUserId() },
-        timeoutMs: path.endsWith('/prompt') ? studio.services.request.timeouts.prompt : studio.services.request.timeouts.generation,
+        timeoutMs: options.timeoutMs ?? (path.endsWith('/prompt') ? studio.services.request.timeouts.prompt : studio.services.request.timeouts.generation),
         signal: options.signal,
         requestId
       });
@@ -10889,6 +11093,8 @@
         const failure = new Error(studio.services.request.generationFailureMessage(error));
         failure.code = error.code;
         failure.requestId = error.requestId || requestId;
+        failure.manicureCorrection = error.manicureCorrection;
+        failure.qualityPreview = error.qualityPreview;
         throw failure;
       }
       throw error;
@@ -10900,6 +11106,14 @@
   }
 
   async function buildPrompt(input, options = {}) {
+    if (options.interactive) {
+      try {
+        return await post('/api/experience/prompt', { ...input, interactiveAnalysis: true }, { ...options, timeoutMs: 55000 });
+      } catch (error) {
+        if (error.code !== 'timeout' || options.signal?.aborted) throw error;
+        throw new Error('本地等待 Gemini 分析超过 55 秒，请重试。');
+      }
+    }
     let lastError;
     for (let attempt = 0; attempt < 3; attempt += 1) {
       try {
@@ -10918,7 +11132,17 @@
     throw lastError;
   }
 
-  function generate(input, options) {
+  async function generate(input, options = {}) {
+    if (input.editorialRender && isLiveMode()) {
+      const health = await studio.services.request.requestJson(`${apiBaseUrl()}/api/health`, {
+        method: 'GET', timeoutMs: 10000, signal: options.signal
+      });
+      // Do not spend an image credit on an old server's two-cell artwork route.
+      if (health.editorialRender !== 'full-page-v2' || health.editorialPosterSet !== 'poster-set-v1' ||
+          (input.editorialRender === 'poster-art-v2' && health.editorialPosterArtwork !== 'poster-art-v2')) {
+        throw new Error('测试生图服务需要更新，当前上传内容已保留，请勿重复上传。');
+      }
+    }
     return post('/api/experience/generate', input, options);
   }
 
@@ -10928,7 +11152,105 @@
     return studio.services.accessSession.authorizationHeader(base);
   }
 
-  studio.services.experienceGeneration = { fileDataUrl, promptImageDataUrl, needsOptimization, buildPrompt, generate, authorizationHeaders, isLiveMode };
+  async function assetRequest(path = '', body, { image = false } = {}) {
+    const base = apiBaseUrl();
+    const access = await authorizationHeaders();
+    const response = await fetch(`${base}/api/product-assets${path}`, {
+      signal: AbortSignal.timeout(body ? 20000 : image ? 15000 : 10000),
+      headers: { ...access, ...(body ? { 'Content-Type': 'application/json' } : {}) },
+      ...(body ? { method: 'POST', body: JSON.stringify(body) } : {})
+    });
+    if (!response.ok) throw Object.assign(new Error('产品图库同步失败'), { status: response.status });
+    return response;
+  }
+
+  async function writeAsset(body) {
+    try {
+      return await (await assetRequest('', body)).json();
+    } catch (error) {
+      if (error.status && error.status < 500 && error.status !== 429) throw error;
+      await new Promise(resolve => setTimeout(resolve, 500));
+      return (await assetRequest('', body)).json();
+    }
+  }
+
+  async function assetVisuals(blob, includePreview = true) {
+    const bitmap = await createImageBitmap(blob, { imageOrientation: 'from-image' });
+    try {
+      const canvas = document.createElement('canvas');
+      canvas.width = canvas.height = 12;
+      const sample = canvas.getContext('2d', { alpha: false, willReadFrequently: true });
+      if (!sample) return {};
+      sample.fillStyle = '#fff';
+      sample.fillRect(0, 0, 12, 12);
+      sample.drawImage(bitmap, 0, 0, 12, 12);
+      const pixels = sample.getImageData(0, 0, 12, 12).data;
+      const signature = Array.from(pixels).filter((_, i) => i % 4 !== 3).map(value => value.toString(16).padStart(2, '0')).join('');
+      const fingerprint = { signature, aspect: Math.round(1000 * bitmap.width / bitmap.height) };
+      const scale = Math.min(1, 640 / Math.max(bitmap.width, bitmap.height));
+      if (!includePreview || (scale === 1 && blob.size <= 120000)) return { fingerprint };
+      canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+      canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+      const context = canvas.getContext('2d', { alpha: false });
+      if (!context) return { fingerprint };
+      context.fillStyle = '#fff';
+      context.fillRect(0, 0, canvas.width, canvas.height);
+      context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+      return { fingerprint, previewDataUrl: await readDataUrl(await canvasBlob(canvas, 0.8), '产品预览') };
+    } finally { bitmap.close(); }
+  }
+
+  async function fetchAssetPreview(id, hasPreview, hasFingerprint, onDuplicate) {
+    const blob = await (await assetRequest(`/${id}${hasPreview ? '?preview=1' : ''}`, undefined, { image: true })).blob();
+    if ((!hasFingerprint || (!hasPreview && blob.size > 120000)) && blob.type.startsWith('image/')) {
+      assetVisuals(blob, !hasPreview).then(async visuals => {
+        const result = await writeAsset({ id, ...visuals });
+        if (result.id && result.id !== id) onDuplicate?.();
+      }).catch(() => {});
+    }
+    return blob;
+  }
+
+  function ensureAsset(image) {
+    if (!assetUploads.has(image)) {
+      assetUploads.set(image, fetch(image.dataUrl).then(response => response.blob()).then(blob => assetVisuals(blob)).catch(() => ({})).then(visuals => writeAsset({
+        dataUrl: image.dataUrl, ...visuals
+      })).catch(error => {
+        assetUploads.delete(image);
+        throw error;
+      }));
+    }
+    return assetUploads.get(image);
+  }
+
+  async function archiveUploads(images) {
+    await Promise.all(images.map(ensureAsset));
+    const payload = await buildPrompt({
+      productDataUrls: await Promise.all(images.map(image => promptImageDataUrl(image.dataUrl, '产品图'))),
+      classifyProductAssets: true,
+      presentationSource: 'product'
+    }, { interactive: true });
+    await syncAssetTags(images, payload);
+  }
+
+  async function syncAssetTags(images, payload) {
+    const categories = { health: '保健品', 'mother-baby': '母婴', beauty: '美妆护肤', 'food-beverage': '食品饮料', 'daily-use': '日用消费品', 'digital-small-appliance': '数码及小型电器' };
+    const tags = Array.isArray(payload.productAssetTags) ? [...payload.productAssetTags] : [];
+    const category = categories[payload.productAnalysis?.categoryId];
+    if (images.length === 1 && category) {
+      const index = tags.findIndex(tag => tag.index === 1);
+      if (index < 0) tags.push({ index: 1, category });
+      else tags[index] = { ...tags[index], category };
+    }
+    await Promise.all(tags.map(async tag => {
+      const image = images[tag.index - 1];
+      if (!image || !(tag.category || tag.brand)) return;
+      const { id } = await ensureAsset(image);
+      await writeAsset({ id, category: tag.category, brand: tag.brand });
+    }));
+  }
+
+  studio.services.experienceGeneration = { fileDataUrl, promptImageDataUrl, needsOptimization, buildPrompt, generate, authorizationHeaders, isLiveMode, assetRequest, fetchAssetPreview, archiveUploads, syncAssetTags };
 })(globalThis.BayerStudio);
 
 
@@ -10939,7 +11261,14 @@
   const maxPreviewLength = 450000;
   const previewLongEdge = 1024;
   const memoryCache = new Map();
-  const imageObjectUrls = new Map();
+  const recent = new Map();
+  let pendingSync;
+
+  function rememberRecent(record) {
+    recent.delete(record.id);
+    recent.set(record.id, record);
+    if (recent.size > 12) recent.delete(recent.keys().next().value);
+  }
 
   function apiUrl(path) {
     const base = studio.services.sceneAnalysis.reviewApiBaseUrl();
@@ -11014,6 +11343,7 @@
     const headers = await studio.services.accessSession.authorizationHeader(studio.services.sceneAnalysis.reviewApiBaseUrl());
     const response = await fetch(apiUrl('/api/reviews'), {
       method: 'POST',
+      signal: AbortSignal.timeout(12000),
       headers: { 'Content-Type': 'application/json; charset=utf-8', ...headers },
       body: JSON.stringify({ ...record, userId: studio.services.imageGeneration.anonymousUserId() })
     });
@@ -11025,7 +11355,9 @@
   }
 
   async function save(record) {
+    rememberRecent(record);
     const compact = await compactRecord(record);
+    rememberRecent(compact);
     try {
       return await post(compact);
     } catch (error) {
@@ -11052,28 +11384,18 @@
   }
 
   async function listPage(limit = 30, offset = 0) {
-    await syncPending();
     const headers = await studio.services.accessSession.authorizationHeader(studio.services.sceneAnalysis.reviewApiBaseUrl());
     const safeLimit = Math.max(1, Math.min(60, limit));
     const safeOffset = Math.max(0, Math.floor(Number(offset) || 0));
-    const response = await fetch(apiUrl(`/api/reviews?limit=${safeLimit}&offset=${safeOffset}`), { cache: 'no-store', headers });
+    const response = await fetch(apiUrl(`/api/reviews?limit=${safeLimit}&offset=${safeOffset}`), { cache: 'no-store', headers, signal: AbortSignal.timeout(10000) });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(payload.error || `读取历史评审失败（${response.status}）`);
     const remoteReviews = payload.reviews || [];
-    const localPending = safeOffset === 0 ? pending().filter(item => !remoteReviews.some(remote => remote.id === item.id)) : [];
+    const localPending = safeOffset === 0 ? localRecent().filter(item => !remoteReviews.some(remote => remote.id === item.id)) : [];
     const selected = [...remoteReviews, ...localPending].sort((left, right) => String(right.createdAt || '').localeCompare(String(left.createdAt || '')));
-    await Promise.all(selected.map(async review => {
-      if (!review.imageUrl || review.previewDataUrl || imageObjectUrls.has(review.id)) return;
-      try {
-        const imageResponse = await fetch(review.imageUrl, { cache: 'no-store', headers });
-        if (!imageResponse.ok) return;
-        const objectUrl = URL.createObjectURL(await imageResponse.blob());
-        imageObjectUrls.set(review.id, objectUrl);
-        review.previewDataUrl = objectUrl;
-      } catch (error) {
-        // 图片暂时不可用时仍展示历史元数据。
-      }
-    }));
+    if (!safeOffset && !pendingSync && pending().length) {
+      pendingSync = syncPending().finally(() => { pendingSync = null; });
+    }
     return {
       reviews: selected,
       total: Math.max(selected.length, Number(payload.total) || 0),
@@ -11084,6 +11406,15 @@
 
   async function list(limit = 30) {
     return (await listPage(limit, 0)).reviews;
+  }
+
+  async function fetchPreview(imageUrl) {
+    const path = new URL(imageUrl, location.href).pathname;
+    if (!path.startsWith('/api/')) throw new Error('历史照片地址无效');
+    const headers = await studio.services.accessSession.authorizationHeader(studio.services.sceneAnalysis.reviewApiBaseUrl());
+    const response = await fetch(apiUrl(path), { headers, signal: AbortSignal.timeout(15000) });
+    if (!response.ok) throw Object.assign(new Error('读取历史图片失败'), { status: response.status });
+    return response.blob();
   }
 
   async function qualityMemory(options = {}) {
@@ -11112,7 +11443,13 @@
     }
   }
 
-  studio.services.reviewHistory = { save, list, listPage, qualityMemory, pending, syncPending, compactReferences };
+  function localRecent() {
+    return [...new Map([...recent.values(), ...pending()].map(item => [item.id, item])).values()];
+  }
+
+  function clearRecent() { recent.clear(); }
+
+  studio.services.reviewHistory = { save, list, listPage, fetchPreview, qualityMemory, pending, localRecent, clearRecent, syncPending, compactReferences };
 })(globalThis.BayerStudio);
 
 
@@ -11943,7 +12280,9 @@
   function render(container) {
     const filters = studio.state.libraryFilters;
     const materials = studio.state.materials;
-    const visible = visibleMaterials();
+    const search = filters.search || '';
+    const visible = visibleMaterials().filter(item => !search ||
+      `${item.title} ${item.id} ${item.scene} ${item.format} ${item.cameraAngle} ${item.shot || ''}`.toLowerCase().includes(search.toLowerCase()));
     const pageSize = 12;
     const pageCount = Math.max(1, Math.ceil(visible.length / pageSize));
     studio.state.libraryPage = Math.min(Math.max(0, studio.state.libraryPage || 0), pageCount - 1);
@@ -11955,8 +12294,8 @@
     const showingProps = filters.materialType === '道具';
     const activeTotal = showingProps ? props.length : materials.length;
     container.innerHTML = `
-      <header class="page-head"><div class="eyebrow">REFERENCE LIBRARY</div><h1>参考图库</h1><p class="subtitle">场景 ${materials.length} 张 · 道具 ${props.length} 张</p></header>
-      <section class="library-filter-panel"><div class="library-filter-grid">
+      <header class="page-head"><h1>场景资产</h1><p class="subtitle">场景 ${materials.length} 张 · 道具 ${props.length} 张</p></header>
+      <section class="library-filter-panel"><form id="sceneSearch" class="actions"><input type="search" aria-label="搜索场景素材" placeholder="搜索场景素材" value="${studio.utils.escapeHtml(search)}"><button class="action" type="submit">搜索</button></form><div class="library-filter-grid">
         ${filterSelect('materialType', '素材类型', studio.data.classification.materialTypes, filters.materialType)}
         ${showingProps
           ? `${filterSelect('propCategory', '道具分类', ['全部', ...studio.data.classification.propCategories], filters.propCategory)}${singleAxes.filter(([key]) => ['cameraAngle', 'subjectOrientation'].includes(key)).map(([key, label, values]) => filterSelect(key, label, ['全部', ...values], filters[key])).join('')}`
@@ -11964,9 +12303,15 @@
       </div></section>
       <div class="toolbar"><span class="count">第 ${rangeStart}–${rangeEnd} 张 / 共 ${visible.length} 张</span><div class="actions"><button class="action primary" id="exportClassifications">导出当前分类</button><button class="action" id="importClassifications">导入分类</button><input id="classificationFile" type="file" accept=".json,application/json" hidden><button class="action" id="resetAllClassifications">恢复全部初始分类</button></div></div>
       <section class="grid">${pageItems.map(item => `
-        <article class="card" data-material="${item.id}"><img src="${encodeURI(item.image)}" alt="${studio.utils.escapeHtml(item.title)}" loading="lazy"><div class="card-body"><span class="code">${item.id}</span><h2>${studio.utils.escapeHtml(item.title)}</h2><div class="tags">${tagMarkup(item)}</div><div class="actions"><button class="action" data-edit-material="${item.id}">编辑分类</button>${item.sourceUrl ? `<a class="source-link" href="${studio.utils.escapeHtml(item.sourceUrl)}" target="_blank" rel="noopener noreferrer">查看原始来源</a>` : ''}</div></div>${studio.state.libraryEditingId === item.id ? editorMarkup(item) : ''}</article>`).join('')}</section>
+        <article class="card" data-material="${item.id}"><img src="${encodeURI(item.image)}" alt="${studio.utils.escapeHtml(item.title)}" loading="lazy"><div class="card-body"><span class="code">${item.id}</span><h2>${studio.utils.escapeHtml(item.title)}</h2><div class="tags">${tagMarkup(item)}</div><div class="actions">${showingProps ? '' : '<button class="action" data-use-asset="reference">用作背景参考</button>'}<button class="action" data-edit-material="${item.id}">编辑分类</button>${item.sourceUrl ? `<a class="source-link" href="${studio.utils.escapeHtml(item.sourceUrl)}" target="_blank" rel="noopener noreferrer">查看原始来源</a>` : ''}</div></div>${studio.state.libraryEditingId === item.id ? editorMarkup(item) : ''}</article>`).join('')}</section>
       <div class="pagination"><button class="action" data-library-page="prev" ${studio.state.libraryPage === 0 ? 'disabled' : ''}>上一页</button><span>${studio.state.libraryPage + 1} / ${pageCount}</span><button class="action" data-library-page="next" ${studio.state.libraryPage + 1 >= pageCount ? 'disabled' : ''}>下一页</button></div>`;
 
+    container.querySelector('#sceneSearch').onsubmit = event => {
+      event.preventDefault();
+      filters.search = event.currentTarget.querySelector('input').value.trim();
+      studio.state.libraryPage = 0;
+      render(container);
+    };
     container.querySelectorAll('[data-library-filter]').forEach(select => select.onchange = () => {
       const key = select.dataset.libraryFilter;
       if (key === 'productForms' || key === 'detailTags') {
@@ -12076,69 +12421,101 @@
   }
 
   function render(container) {
-    const libraryState = studio.state.productLibrary;
+    const state = studio.state.productLibrary;
     const catalog = studio.data.platformCatalog;
-    const brands = catalog.brands;
-    const brandProducts = catalog.products.filter(item => item.brandId === libraryState.brandId);
-    if (!brandProducts.some(item => item.id === libraryState.productId)) libraryState.productId = brandProducts[0]?.id || '';
-    const productSkus = catalog.skus.filter(item => item.productId === libraryState.productId);
-    if (!productSkus.some(item => item.id === libraryState.skuId)) libraryState.skuId = productSkus[0]?.id || '';
-    const selectedSku = studio.data.catalogHelpers.sku(libraryState.skuId);
-    const products = studio.data.products;
-    const angles = products.angleFiles.map(angle => ({ image: products.root + angle.file, ...angle }));
-    const comboAngles = products.comboAngleFiles.map(angle => ({ image: products.root + angle.file, ...angle }));
-    const generationReferences = [products.blister, products.usedBlister, products.tablet, products.tabletPalm, products.tabletHorizontal, products.tabletVertical]
-      .map(reference => ({ image: products.root + reference.file, label: reference.label }));
-    const editor = item => `<div class="model-angle-editor"><label>角度描述<input data-model-label value="${studio.utils.escapeHtml(item.label)}"></label><label>拍摄机位<select data-model-camera>${studio.data.classification.cameraAngles.map(value => `<option${value === item.cameraAngle ? ' selected' : ''}>${value}</option>`).join('')}</select></label><label>产品朝向<select data-model-orientation>${studio.data.classification.subjectOrientations.map(value => `<option${value === item.subjectOrientation ? ' selected' : ''}>${value}</option>`).join('')}</select></label><label>真实摆放姿态<select data-model-pose>${poseOptions.map(value => `<option${value === item.pose ? ' selected' : ''}>${value}</option>`).join('')}</select></label><label>承托面<select data-model-support>${supportFaceOptions.map(value => `<option${value === item.supportFace ? ' selected' : ''}>${value}</option>`).join('')}</select></label><label>可见包装面<input data-model-faces value="${studio.utils.escapeHtml(item.visibleFaces || '')}" placeholder="例如：正面＋右侧面"></label><div class="actions"><button class="action" data-model-cancel>取消</button><button class="action primary" data-model-save="${item.file}">保存分类</button></div></div>`;
-    const cards = (items, editable = true) => items.map(product => `<article class="product-card" data-model-file="${product.file || ''}"><img src="${product.image}" alt="${studio.utils.escapeHtml(product.label)}"><span>${studio.utils.escapeHtml(product.label)}</span>${product.cameraAngle ? `<div class="tags modeling-tags"><span class="tag">类型:${studio.utils.escapeHtml(product.productForm || '产品')}</span><span class="tag">机位:${product.cameraAngle}</span><span class="tag">朝向:${product.subjectOrientation}</span><span class="tag">可见:${studio.utils.escapeHtml(product.visibleFaces || '未标')}</span></div>${editable ? `<div class="model-card-actions"><button class="action" data-model-edit="${product.file}">编辑分类</button></div>${editingFile === product.file ? editor(product) : ''}` : ''}` : ''}</article>`).join('');
-    const coverage = selectedSku?.poseCoverage || {};
-    const coverageMarkup = Object.entries({ identity: '身份母版', static: '静置姿态', handheld: '手持姿态', scale: '比例参考', combination: '组合参考' })
-      .map(([key, label]) => `<span class="coverage-chip ${coverage[key] ? 'ready' : 'missing'}">${coverage[key] ? '✓' : '待补'} ${label}</span>`).join('');
-    const selector = `<section class="catalog-selector"><div class="axis"><b>品牌</b>${brands.map(item => `<button class="pill ${item.id === libraryState.brandId ? 'active' : ''}" data-brand-id="${item.id}">${item.name}${item.status !== 'active' ? ' · 接入中' : ''}</button>`).join('')}</div><div class="catalog-fields"><label>产品<select id="catalogProduct">${brandProducts.map(item => `<option value="${item.id}"${item.id === libraryState.productId ? ' selected' : ''}>${item.name}</option>`).join('')}</select></label><label>SKU<select id="catalogSku">${productSkus.map(item => `<option value="${item.id}"${item.id === libraryState.skuId ? ' selected' : ''}>${item.name}</option>`).join('')}</select></label><div><b>档案覆盖</b><div class="coverage-list">${coverageMarkup}</div></div></div></section>`;
-    const catalogAssets = Array.isArray(selectedSku?.assets) ? selectedSku.assets : [];
-    const assetGroups = catalogAssets.reduce((groups, asset) => {
-      const group = asset.productForm || '产品图';
-      if (!groups.has(group)) groups.set(group, []);
-      groups.get(group).push(asset);
-      return groups;
-    }, new Map());
-    const catalogAssetContent = selectedSku?.status === 'ready' && catalogAssets.length
-      ? `<div class="toolbar"><span class="count">${catalogAssets.length} 张产品图</span></div>${selectedSku.manualSelectionRequired ? '<div class="selection-plan blocked"><span>部分角度未覆盖，请手动选择。</span></div>' : ''}${[...assetGroups.entries()].map(([group, items]) => `<h3 class="section-title">${studio.utils.escapeHtml(group)} · ${items.length} 张</h3><section class="product-grid">${cards(items, false)}</section>`).join('')}`
-      : '';
-    const legacyContent = selectedSku?.id === 'bayer-shiguang-default'
-      ? `<div class="toolbar"><span class="count">时光片产品图</span><div class="actions"><button class="action primary" id="exportModelAngles">导出分类</button><button class="action" id="importModelAngles">导入分类</button><input id="modelAngleFile" type="file" accept=".json,application/json" hidden></div></div><h3 class="section-title">包装与比例 · 6 张</h3><section class="product-grid">${cards(products.gallery)}</section><h3 class="section-title">药板与药片 · 6 张</h3><section class="product-grid">${cards(generationReferences)}</section><h3 class="section-title">包装盒 · 12 张</h3><section class="product-grid">${cards(angles)}</section><h3 class="section-title">包装盒＋药板 · 12 张</h3><section class="product-grid">${cards(comboAngles)}</section>`
-      : (catalogAssetContent || `<div class="empty product-empty"><h2>${studio.utils.escapeHtml(selectedSku?.name || '该产品')}</h2><p>该 SKU 尚未导入可用产品图。</p></div>`);
-    container.innerHTML = `<header class="page-head"><div class="eyebrow">PRODUCT LIBRARY</div><h1>产品库</h1><p class="subtitle">选择产品并查看图片。</p></header>${selector}${legacyContent}`;
-    container.querySelectorAll('[data-brand-id]').forEach(button => button.onclick = () => { libraryState.brandId = button.dataset.brandId; libraryState.productId = ''; libraryState.skuId = ''; render(container); });
-    container.querySelector('#catalogProduct').onchange = event => { libraryState.productId = event.target.value; libraryState.skuId = ''; render(container); };
-    container.querySelector('#catalogSku').onchange = event => { libraryState.skuId = event.target.value; render(container); };
-    if (selectedSku?.id !== 'bayer-shiguang-default') return;
-    container.querySelectorAll('[data-model-edit]').forEach(button => button.onclick = () => { editingFile = button.dataset.modelEdit; render(container); });
-    container.querySelectorAll('[data-model-cancel]').forEach(button => button.onclick = () => { editingFile = null; render(container); });
-    container.querySelectorAll('[data-model-save]').forEach(button => button.onclick = () => {
-      const card = button.closest('[data-model-file]');
-      const angle = [...products.angleFiles, ...products.comboAngleFiles].find(item => item.file === button.dataset.modelSave);
-      angle.label = card.querySelector('[data-model-label]').value.trim() || angle.label;
-      angle.cameraAngle = card.querySelector('[data-model-camera]').value;
-      angle.subjectOrientation = card.querySelector('[data-model-orientation]').value;
-      angle.pose = card.querySelector('[data-model-pose]').value;
-      angle.supportFace = card.querySelector('[data-model-support]').value;
-      angle.visibleFaces = card.querySelector('[data-model-faces]').value.trim() || angle.visibleFaces;
-      persist(angle); editingFile = null; studio.state.prompt.results = []; render(container);
+    const categories = ['保健品', '母婴', '数码及小型电器', '美妆护肤', '食品饮料', '日用消费品', '其他', '待分类'];
+    const category = state.category || '';
+    const escape = studio.utils.escapeHtml;
+    container.innerHTML = `<header class="page-head"><h1>产品资产</h1></header>
+      <nav class="actions" aria-label="产品品类">${categories.map(name => `<button class="action ${name === category ? 'primary' : ''}" data-product-category="${name}" aria-pressed="${name === category}">${name}</button>`).join('')}</nav>
+      <section class="asset-gallery"><div data-uploaded-assets></div><p aria-live="polite"></p><button class="action" type="button" hidden>加载更多</button></section>`;
+    container.querySelectorAll('[data-product-category]').forEach(button => button.onclick = () => {
+      state.category = button.dataset.productCategory;
+      render(container);
     });
-    container.querySelector('#exportModelAngles').onclick = download;
-    const input = container.querySelector('#modelAngleFile');
-    container.querySelector('#importModelAngles').onclick = () => input.click();
-    input.onchange = async event => {
+    if (!category) return;
+    const uploaded = container.querySelector('.asset-gallery');
+    const grid = uploaded.querySelector('[data-uploaded-assets]');
+    const status = uploaded.querySelector('p');
+    const more = uploaded.querySelector(':scope > button');
+    const groups = new Map();
+    const seen = new Set();
+    const { assetRequest, fetchAssetPreview, isLiveMode } = studio.services.experienceGeneration;
+    function brandLabel(value) {
+      const key = String(value || '').trim().toLowerCase();
+      return ({ bayer: '拜耳', huggies: '好奇' })[key] || String(value || '').trim() || '品牌待确认';
+    }
+    function addCard({ brand, label, src, id, hasPreview, hasFingerprint }) {
+      const key = id || src;
+      if (!key || seen.has(key)) return;
+      seen.add(key);
+      const title = brandLabel(brand);
+      if (!groups.has(title)) {
+        const section = document.createElement('section');
+        section.className = 'asset-brand';
+        section.innerHTML = `<h2 class="section-title">${escape(title)}</h2><div class="product-grid"></div>`;
+        grid.append(section);
+        groups.set(title, section.querySelector('.product-grid'));
+      }
+      const card = document.createElement('article');
+      card.className = 'product-card asset-card';
+      card.innerHTML = `<div class="gallery-image"><img alt="${escape(label || title)}" data-src="${escape(src || '')}" hidden decoding="async"><button class="action" type="button" hidden>重试图片</button></div><button type="button" class="action" data-use-asset="product"${id ? ` data-product-asset-id="${escape(id)}"` : ''}>使用此图</button>`;
+      groups.get(title).append(card);
+      const photo = id ? () => fetchAssetPreview(id, hasPreview, hasFingerprint, () => {
+        card.remove();
+        seen.delete(key);
+        const group = groups.get(title);
+        if (group && !group.children.length) { group.parentElement.remove(); groups.delete(title); }
+      }) : null;
+      studio.services.galleryImages.mount(card.querySelector('.gallery-image'), id ? `product:${id}:${hasPreview}` : '', photo);
+    }
+
+    const catalogBrand = { 保健品: 'bayer', 母婴: 'huggies' }[category];
+    const originals = studio.data.products;
+    const catalogCards = catalog.skus.filter(sku => sku.brandId === catalogBrand).flatMap(sku =>
+      (sku.assets || []).map(asset => ({ brand: catalogBrand, src: asset.image, label: asset.label }))
+    );
+    if (catalogBrand === 'bayer') {
+      const extras = [...originals.angleFiles, ...originals.comboAngleFiles, originals.blister, originals.usedBlister, originals.tablet, originals.tabletPalm, originals.tabletHorizontal, originals.tabletVertical];
+      catalogCards.push(...originals.gallery.map(asset => ({ brand: catalogBrand, src: asset.image, label: asset.label })),
+        ...extras.filter(Boolean).map(asset => ({ brand: catalogBrand, src: originals.root + asset.file, label: asset.label })));
+    }
+    const localCards = [...new Map(catalogCards.filter(card => card.src).map(card => [card.src, card])).values()];
+    let localOffset = 0;
+    let remoteOffset = 0;
+    let hasMore = isLiveMode();
+    let failed = false;
+    let loading = false;
+    async function load() {
+      if (loading) return;
+      loading = true;
+      const remaining = localCards.slice(localOffset, localOffset + 12);
+      remaining.forEach(addCard);
+      localOffset += remaining.length;
+      status.textContent = hasMore ? '加载中…' : '';
+      more.hidden = true;
       try {
-        const imported = JSON.parse(await event.target.files[0].text());
-        const known = new Map([...products.angleFiles, ...products.comboAngleFiles].map(item => [item.file, item]));
-        let count = 0;
-        (imported.items || []).forEach(row => { const angle = known.get(row.file); if (!angle) return; if (row.label) angle.label = row.label; if (studio.data.classification.cameraAngles.includes(row.cameraAngle)) angle.cameraAngle = row.cameraAngle; if (studio.data.classification.subjectOrientations.includes(row.subjectOrientation)) angle.subjectOrientation = row.subjectOrientation; if (poseOptions.includes(row.pose)) angle.pose = row.pose; if (supportFaceOptions.includes(row.supportFace)) angle.supportFace = row.supportFace; if (row.visibleFaces) angle.visibleFaces = row.visibleFaces; persist(angle); count += 1; });
-        if (!count) throw new Error('没有匹配的产品建模参考图');
-        editingFile = null; studio.state.prompt.results = []; render(container); alert(`已导入 ${count} 张产品建模角度分类。`);
-      } catch (error) { alert(`导入失败：${error.message}`); }
-    };
+        if (hasMore) {
+          const query = new URLSearchParams({ category, offset: remoteOffset });
+          const data = await (await assetRequest(`?${query}`)).json();
+          if (!uploaded.isConnected) return;
+          for (const asset of data.assets) addCard({ brand: asset.brand, id: asset.id, hasPreview: asset.hasPreview, hasFingerprint: asset.hasFingerprint });
+          remoteOffset += data.assets.length;
+          hasMore = data.hasMore;
+        }
+        failed = false;
+        status.textContent = seen.size ? '' : '暂无产品图';
+      } catch {
+        failed = true;
+        status.textContent = '暂时无法读取共享产品图';
+      } finally {
+        loading = false;
+        more.hidden = !(failed || hasMore || localOffset < localCards.length);
+        more.textContent = failed ? '重试' : '加载更多';
+      }
+    }
+    more.onclick = load;
+    load();
   }
   studio.features.modeling = { initialize, render, buildClassificationExport: payload };
 })(globalThis.BayerStudio);
@@ -13852,11 +14229,12 @@
       state.loaded = true;
     } catch (error) {
       state.error = error.message;
-      state.reviews = studio.services.reviewHistory.pending();
+      state.reviews = [...new Map([...state.reviews, ...studio.services.reviewHistory.localRecent()].map(item => [item.id, item])).values()]
+        .sort((left, right) => String(right.createdAt || '').localeCompare(String(left.createdAt || '')));
     } finally {
       state.loading = false;
       state.attempted = true;
-      render(container);
+      if (studio.state.currentView === 'history') render(container);
     }
   }
 
@@ -13877,11 +14255,17 @@
     const brands = [{ id: 'all', name: '全部品牌' }, ...studio.data.platformCatalog.brands, { id: 'custom', name: '自定义上传' }];
     const products = [{ id: 'all', name: '全部产品' }, ...studio.data.platformCatalog.products, { id: 'custom-upload', name: '临时产品' }];
     const options = (items, selected) => items.map(item => `<option value="${item.id}"${item.id === selected ? ' selected' : ''}>${item.name}</option>`).join('');
-    container.innerHTML = `<header class="page-head"><div class="eyebrow">UNIFIED HISTORY</div><h1>统一历史</h1><p class="subtitle">查看、评分和验收生成结果。</p></header>
+    container.innerHTML = `<header class="page-head"><h1>创作历史</h1></header>
       <section class="history-filters"><label>品牌<select data-history-filter="brandId">${options(brands, state.filters.brandId)}</select></label><label>产品<select data-history-filter="productId">${options(products, state.filters.productId)}</select></label><label>生成方式<select data-history-filter="generationSource"><option value="all">全部方式</option><option value="reference-background-edit"${state.filters.generationSource === 'reference-background-edit' ? ' selected' : ''}>参考成片换背景</option><option value="library-smart"${state.filters.generationSource === 'library-smart' ? ' selected' : ''}>库内智能生成</option><option value="manual-library"${state.filters.generationSource === 'manual-library' ? ' selected' : ''}>手动库内选图</option><option value="manual-upload"${state.filters.generationSource === 'manual-upload' ? ' selected' : ''}>手动上传</option><option value="custom-upload"${state.filters.generationSource === 'custom-upload' ? ' selected' : ''}>旧版自定义上传</option></select></label><label>评分状态<select data-history-filter="rating"><option value="all">全部状态</option><option value="rated"${state.filters.rating === 'rated' ? ' selected' : ''}>已评分</option><option value="unrated"${state.filters.rating === 'unrated' ? ' selected' : ''}>待评分</option></select></label></section>
       <div class="history-summary"><div><b>${state.total || state.reviews.length}</b><span>共享历史总数</span></div><div><b>${average}</b><span>当前已加载记录中 ${rated.length} 张已评分</span></div><button class="action" id="reloadHistory" ${state.loading ? 'disabled' : ''}>${state.loading ? '读取中…' : '刷新历史'}</button></div>
       ${state.error ? `<div class="validation-error">${studio.utils.escapeHtml(state.error)}</div>` : ''}
-      ${filtered.length ? `<section class="history-grid">${filtered.map(review => { const meta = inferred(review); const brand = brands.find(item => item.id === meta.brandId)?.name || meta.brandId; const product = products.find(item => item.id === meta.productId)?.name || meta.productId; const sourceLabel = ({ 'reference-background-edit': '参考成片换背景', 'library-smart': '库内智能生成', 'manual-library': '手动库内选图', 'manual-upload': '手动上传', 'custom-upload': '旧版自定义上传' })[meta.generationSource] || meta.generationSource; const qa = review.qaStatus || 'pending'; return `<article class="history-card">${reviewImage(review) ? `<img src="${studio.utils.escapeHtml(reviewImage(review))}" alt="历史生成图片" loading="lazy">` : '<div class="history-image-missing">等待同步</div>'}<div class="history-card-body"><div class="history-badges"><div class="history-score">${Number(review.rating) > 0 ? `${review.rating}/5` : '待评分'}</div><div class="history-qa ${qa}">${qa === 'approved' ? '已通过' : (qa === 'rejected' ? '未通过' : '待验收')}</div></div><b>${studio.utils.escapeHtml(brand)} · ${studio.utils.escapeHtml(product)}</b><span>${studio.utils.escapeHtml(sourceLabel)} · ${studio.utils.escapeHtml(review.combo || '未分类')}</span><span>${studio.utils.escapeHtml(review.visualStyle || '')} · ${studio.utils.escapeHtml(review.sceneId || '')}</span><div class="tags">${(review.tags || []).map(tag => `<span class="tag">${studio.utils.escapeHtml(tag)}</span>`).join('')}</div>${review.note ? `<p>${studio.utils.escapeHtml(review.note)}</p>` : ''}<details><summary>查看提示词</summary><p>${studio.utils.escapeHtml(review.prompt || '')}</p></details></div></article>`; }).join('')}</section>${state.hasMore ? `<div class="history-load-more"><button class="action" id="loadMoreHistory" ${state.loading ? 'disabled' : ''}>加载更多</button></div>` : ''}` : `<div class="empty">${state.loading ? '正在读取…' : (state.reviews.length ? '没有符合条件的记录。' : '暂无生成记录。')}</div>`}`;
+      ${filtered.length ? `<section class="history-grid">${filtered.map(review => { const meta = inferred(review); const brand = brands.find(item => item.id === meta.brandId)?.name || meta.brandId; const product = products.find(item => item.id === meta.productId)?.name || meta.productId; const sourceLabel = ({ 'reference-background-edit': '参考成片换背景', 'library-smart': '库内智能生成', 'manual-library': '手动库内选图', 'manual-upload': '手动上传', 'custom-upload': '旧版自定义上传' })[meta.generationSource] || meta.generationSource; const qa = review.qaStatus || 'pending'; return `<article class="history-card">${(reviewImage(review) || review.imageUrl) ? `<div class="gallery-image" data-history-image="${studio.utils.escapeHtml(review.id)}"><img data-src="${studio.utils.escapeHtml(reviewImage(review))}" alt="历史生成图片" decoding="async" hidden><button type="button" class="action" hidden>重试图片</button></div>` : '<div class="history-image-missing">等待同步</div>'}<div class="history-card-body"><div class="history-badges"><div class="history-score">${Number(review.rating) > 0 ? `${review.rating}/5` : '待评分'}</div><div class="history-qa ${qa}">${qa === 'approved' ? '已通过' : (qa === 'rejected' ? '未通过' : '待验收')}</div></div><b>${studio.utils.escapeHtml(brand)} · ${studio.utils.escapeHtml(product)}</b><span>${studio.utils.escapeHtml(sourceLabel)} · ${studio.utils.escapeHtml(review.combo || '未分类')}</span><span>${studio.utils.escapeHtml(review.visualStyle || '')} · ${studio.utils.escapeHtml(review.sceneId || '')}</span><div class="tags">${(review.tags || []).map(tag => `<span class="tag">${studio.utils.escapeHtml(tag)}</span>`).join('')}</div>${review.note ? `<p>${studio.utils.escapeHtml(review.note)}</p>` : ''}<details><summary>查看提示词</summary><p>${studio.utils.escapeHtml(review.prompt || '')}</p></details></div></article>`; }).join('')}</section>${state.hasMore ? `<div class="history-load-more"><button class="action" id="loadMoreHistory" ${state.loading ? 'disabled' : ''}>加载更多</button></div>` : ''}` : `<div class="empty">${state.loading ? '正在读取…' : (state.reviews.length ? '没有符合条件的记录。' : '暂无生成记录。')}</div>`}`;
+    const byId = new Map(filtered.map(review => [String(review.id), review]));
+    container.querySelectorAll('[data-history-image]').forEach(frame => {
+      const review = byId.get(frame.dataset.historyImage);
+      const remote = !reviewImage(review) && review.imageUrl;
+      studio.services.galleryImages.mount(frame, `history:${review.id}`, remote ? () => studio.services.reviewHistory.fetchPreview(remote) : null);
+    });
     container.querySelectorAll('[data-history-filter]').forEach(select => select.onchange = () => { state.filters[select.dataset.historyFilter] = select.value; render(container); });
     container.querySelector('#reloadHistory').onclick = () => load(container);
     const loadMore = container.querySelector('#loadMoreHistory');
@@ -13890,6 +14274,788 @@
   }
 
   studio.features.history = { initialize, render };
+})(globalThis.BayerStudio);
+
+
+(function registerTagBattleFeature(studio) {
+  'use strict';
+
+  const axes = [
+    ['style', '质感', ['素人', '精致']],
+    ['placement', '展示', ['手持', '静置']],
+    ['camera', '拍摄角度', ['俯拍', '平拍', '仰拍']],
+    ['orientation', '产品朝向', ['左', '正', '右']],
+    ['scene', '画面感', ['生活', '摆拍']]
+  ];
+
+  const databaseName = 'bayer-reference-tag-test-v1';
+  let sharedSaveTimer = 0;
+
+  function localSharedStateAvailable() {
+    return ['127.0.0.1', 'localhost'].includes(location.hostname);
+  }
+
+  async function readSharedState() {
+    if (!localSharedStateAvailable()) return { items: [], meta: null };
+    const response = await fetch(`${location.origin}/api/tag-test-state`, { cache: 'no-store' });
+    if (!response.ok) throw new Error(`读取统一本地记录失败（${response.status}）`);
+    return response.json();
+  }
+
+  async function saveSharedState(state) {
+    if (!localSharedStateAvailable()) return;
+    const response = await fetch(`${location.origin}/api/tag-test-state`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json; charset=utf-8' },
+      body: JSON.stringify({ items: state.items, meta: { selectedId: state.selectedId, nextId: state.nextId, savedAt: new Date().toISOString() } })
+    });
+    if (!response.ok) throw new Error(`统一保存失败（${response.status}）`);
+  }
+
+  function queueSharedSave(state) {
+    clearTimeout(sharedSaveTimer);
+    sharedSaveTimer = setTimeout(() => saveSharedState(state).catch(error => { state.message = `浏览器内记录已保存，但统一保存失败：${error.message}`; }), 800);
+  }
+
+  function openDatabase() {
+    return new Promise((resolve, reject) => {
+      const request = indexedDB.open(databaseName, 1);
+      request.onupgradeneeded = () => {
+        const database = request.result;
+        if (!database.objectStoreNames.contains('items')) database.createObjectStore('items', { keyPath: 'id' });
+        if (!database.objectStoreNames.contains('meta')) database.createObjectStore('meta');
+      };
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error || new Error('无法打开本地保存空间'));
+    });
+  }
+
+  async function databaseRequest(storeName, mode, operation) {
+    const database = await openDatabase();
+    return new Promise((resolve, reject) => {
+      const transaction = database.transaction(storeName, mode);
+      const store = transaction.objectStore(storeName);
+      let result;
+      try { result = operation(store); } catch (error) { database.close(); reject(error); return; }
+      transaction.oncomplete = () => { database.close(); resolve(result?.result); };
+      transaction.onerror = () => { database.close(); reject(transaction.error || new Error('本地保存失败')); };
+      transaction.onabort = () => { database.close(); reject(transaction.error || new Error('本地保存已中断')); };
+    });
+  }
+
+  function persistItem(item) {
+    return databaseRequest('items', 'readwrite', store => store.put(item));
+  }
+
+  function persistMeta(state) {
+    return databaseRequest('meta', 'readwrite', store => store.put({ selectedId: state.selectedId, nextId: state.nextId, savedAt: new Date().toISOString() }, 'state'));
+  }
+
+  async function restorePersistentState(state) {
+    try {
+      const [items, meta, shared] = await Promise.all([
+        databaseRequest('items', 'readonly', store => store.getAll()),
+        databaseRequest('meta', 'readonly', store => store.get('state')),
+        readSharedState().catch(() => ({ items: [], meta: null }))
+      ]);
+      const localSavedAt = Date.parse(meta?.savedAt || '') || 0;
+      const sharedSavedAt = Date.parse(shared?.savedAt || shared?.meta?.savedAt || '') || 0;
+      const useShared = Array.isArray(shared?.items) && shared.items.length && (!items?.length || sharedSavedAt >= localSavedAt);
+      const restoredItems = useShared ? shared.items : (items || []);
+      const restoredMeta = useShared ? (shared.meta || {}) : (meta || {});
+      state.items = restoredItems.sort((left, right) => Number(left.order || left.id.split('-').pop()) - Number(right.order || right.id.split('-').pop()));
+      state.nextId = Math.max(Number(restoredMeta.nextId) || 1, ...state.items.map(item => Number(item.order || item.id.split('-').pop()) + 1), 1);
+      state.selectedId = state.items.some(item => item.id === restoredMeta.selectedId) ? restoredMeta.selectedId : (state.items[0]?.id || '');
+      state.message = state.items.length ? `已恢复 ${state.items.length} 张参考图及评分，Chrome与应用内浏览器共用。` : '';
+      if (useShared) {
+        for (const item of state.items) await persistItem(item);
+        await persistMeta(state);
+      } else if (state.items.length) {
+        await saveSharedState(state);
+      }
+    } catch (error) {
+      state.message = `本地记录恢复失败：${error.message}`;
+    } finally {
+      state.restoring = false;
+      if (studio.state.currentView === 'tagBattle') {
+        const container = document.querySelector('#view');
+        if (container) render(container);
+      }
+    }
+  }
+
+  async function clearPersistentState(state, container) {
+    const database = await openDatabase();
+    await new Promise((resolve, reject) => {
+      const transaction = database.transaction(['items', 'meta'], 'readwrite');
+      transaction.objectStore('items').clear();
+      transaction.objectStore('meta').clear();
+      transaction.oncomplete = resolve;
+      transaction.onerror = () => reject(transaction.error || new Error('清空失败'));
+    });
+    database.close();
+    if (localSharedStateAvailable()) await fetch(`${location.origin}/api/tag-test-state`, { method: 'DELETE' });
+    state.items = [];
+    state.selectedId = '';
+    state.nextId = 1;
+    state.filter = 'all';
+    state.message = '本机测试结果已清空。';
+    render(container);
+  }
+
+  function initialize() {
+    studio.state.tagBattle = {
+      items: [], selectedId: '', running: false, stopRequested: false,
+      message: '', nextId: 1, filter: 'all', restoring: true
+    };
+    restorePersistentState(studio.state.tagBattle);
+  }
+
+  function current() {
+    const state = studio.state.tagBattle;
+    return state.items.find(item => item.id === state.selectedId) || state.items[0] || null;
+  }
+
+  function successfulResults(item) {
+    return (item?.results || []).filter(result => result.ok);
+  }
+
+  function itemStatus(item) {
+    if (item.status === 'tagging') return 'tagging';
+    if (!item.results) return 'pending';
+    if (item.results.some(result => !result.ok)) return 'error';
+    if (!successfulResults(item).length) return 'error';
+    return successfulResults(item).every(result => Number(result.rating) >= 1) ? 'reviewed' : 'review';
+  }
+
+  function counts(state) {
+    const values = { pending: 0, tagging: 0, review: 0, reviewed: 0, error: 0 };
+    state.items.forEach(item => { values[itemStatus(item)] += 1; });
+    return values;
+  }
+
+  function filteredItems(state) {
+    if (state.filter === 'all') return state.items;
+    return state.items.filter(item => itemStatus(item) === state.filter);
+  }
+
+  function providerLabel(result) {
+    return result.provider === 'gemini' ? 'Gemini（原工具模型）' : 'DeepSeek V4 Flash';
+  }
+
+  function resultEditor(result) {
+    if (!result.ok) return `<article class="batch-model-card error"><h3>${providerLabel(result)}</h3><p>${studio.utils.escapeHtml(result.error || '打标失败')}</p></article>`;
+    return `<article class="batch-model-card">
+      <header><div><h3>${providerLabel(result)}</h3><small>${studio.utils.escapeHtml(result.model || '')}</small></div><div class="batch-rating"><span>人工评分</span>${[1, 2, 3, 4, 5].map(value => `<button type="button" data-rating="${value}" data-provider="${result.provider}" class="${result.rating === value ? 'selected' : ''}">${value}</button>`).join('')}</div></header>
+      <div class="batch-tag-grid">${axes.map(([key, label, values]) => {
+        const selected = result.corrected?.[key] || '';
+        return `<section class="batch-tag-axis"><b>${label}</b><div>${values.map(value => `<button type="button" data-set-tag="${key}" data-value="${value}" data-provider="${result.provider}" class="${selected === value ? 'selected' : ''}">${value}</button>`).join('')}<button type="button" data-clear-tag="${key}" data-provider="${result.provider}" class="clear">删除</button></div></section>`;
+      }).join('')}</div>
+      <details><summary>查看 AI 判断依据</summary><ul>${axes.map(([key, label]) => `<li><b>${label}：</b>${studio.utils.escapeHtml(result.evidence?.[key] || '未说明')}</li>`).join('')}</ul></details>
+    </article>`;
+  }
+
+  function csvCell(value) {
+    return `"${String(value ?? '').replaceAll('"', '""')}"`;
+  }
+
+  function recordTagChange(result, key, nextValue) {
+    const previousValue = result.corrected?.[key] || '';
+    if (previousValue === nextValue) return false;
+    const axisLabel = axes.find(([axis]) => axis === key)?.[1] || key;
+    const changedAt = new Date().toISOString();
+    result.changeLog ||= [];
+    result.changeLog.push({ axis: key, axisLabel, from: previousValue, to: nextValue, at: changedAt });
+    result.modifiedAt = changedAt;
+    result.corrected[key] = nextValue;
+    return true;
+  }
+
+  function exportCsv(state) {
+    const headers = ['file_name', 'provider', 'model', 'status', 'rating', ...axes.flatMap(([key]) => [`original_${key}`, `corrected_${key}`]), 'changed_axes', 'change_count', 'last_modified_at', 'change_log', 'error'];
+    const rows = state.items.flatMap(item => (item.results?.length ? item.results : [{ provider: '', model: '', ok: false, error: '未打标' }]).map(result => [
+      item.name, result.provider, result.model, itemStatus(item), result.rating || '',
+      ...axes.flatMap(([key]) => [result.original?.[key] || '', result.corrected?.[key] || '']),
+      axes.filter(([key]) => (result.original?.[key] || '') !== (result.corrected?.[key] || '')).map(([, label]) => label).join('、'),
+      result.changeLog?.length || 0,
+      result.modifiedAt || '',
+      (result.changeLog || []).map(change => `${change.at} ${change.axisLabel}:${change.from || '空'}→${change.to || '空'}`).join('；'),
+      result.error || ''
+    ]));
+    const content = [headers, ...rows].map(row => row.map(csvCell).join(',')).join('\n');
+    const blob = new Blob([`\ufeff${content}`], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `参考图打标测试_${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  async function addFiles(files, state, container) {
+    const known = new Set(state.items.map(item => item.fileKey));
+    let added = 0;
+    for (const file of files) {
+      if (!file.type?.startsWith('image/')) continue;
+      const fileKey = `${file.name}:${file.size}:${file.lastModified}`;
+      if (known.has(fileKey)) continue;
+      try {
+        const imageDataUrl = await studio.services.tagBattle.prepareImage(file);
+        const order = state.nextId++;
+        const item = { id: `tag-${order}`, order, fileKey, name: file.webkitRelativePath || file.name, preview: imageDataUrl, imageDataUrl, results: null, status: 'pending' };
+        state.items.push(item);
+        state.selectedId ||= item.id;
+        known.add(fileKey);
+        added += 1;
+        await persistItem(item);
+      } catch (error) {
+        state.message = `${file.name}：${error.message}`;
+      }
+    }
+    if (added) {
+      await persistMeta(state);
+      queueSharedSave(state);
+      state.message = `已加入 ${added} 张参考图，并已自动保存在本机。`;
+    }
+    render(container);
+  }
+
+  async function runBatch(state, container) {
+    const pending = state.items.filter(item => !item.results || item.results.some(result => !result.ok));
+    if (!pending.length) { state.message = '没有待打标或失败的参考图。'; return render(container); }
+    state.running = true;
+    state.stopRequested = false;
+    for (let index = 0; index < pending.length; index += 1) {
+      if (state.stopRequested) break;
+      const item = pending[index];
+      state.selectedId = item.id;
+      item.status = 'tagging';
+      state.message = `正在打标 ${index + 1}/${pending.length}：${item.name}`;
+      render(container);
+      try {
+        const payload = await studio.services.tagBattle.analyze(item.imageDataUrl);
+        item.results = (payload.results || []).map(result => ({
+          ...result,
+          original: result.tags ? { ...result.tags } : null,
+          corrected: result.tags ? { ...result.tags } : null,
+          rating: 0
+        })).sort((left, right) => (left.provider === 'gemini' ? -1 : 1) - (right.provider === 'gemini' ? -1 : 1));
+      } catch (error) {
+        item.results = [{ provider: 'gemini', label: 'Gemini', ok: false, error: error.message }, { provider: 'deepseek', label: 'DS', ok: false, error: error.message }];
+      }
+      item.status = 'ready';
+      await persistItem(item);
+      await persistMeta(state);
+    }
+    state.running = false;
+    await saveSharedState(state).catch(error => { state.message = `批量结果已保存在当前浏览器，但统一保存失败：${error.message}`; });
+    state.message = state.stopRequested ? '已停止，未完成的图片可稍后继续。' : '批量打标完成，请开始人工复核和评分。';
+    state.stopRequested = false;
+    render(container);
+  }
+
+  function render(container) {
+    const state = studio.state.tagBattle;
+    const item = current();
+    const totals = counts(state);
+    const visible = filteredItems(state);
+    container.innerHTML = `
+      <header class="page-head"><div class="eyebrow">TEMPORARY REFERENCE TAGGING TEST</div><h1>参考图批量打标测试</h1><p class="subtitle">这里打标的是参考图，不是产品图。一次导入约50张参考图，双模型批量打标，再由人工逐张复核并打1–5分。</p></header>
+      <section class="batch-actions">
+        <label class="battle-upload"><input id="tagFolderFiles" type="file" accept="image/*" multiple webkitdirectory directory><span>选择参考图文件夹</span></label>
+        <label class="battle-upload secondary"><input id="tagMoreFiles" type="file" accept="image/*" multiple><span>继续添加参考图</span></label>
+        <button type="button" class="action primary" id="runTagBatch" ${state.running || !state.items.length ? 'disabled' : ''}>开始批量打标</button>
+        ${state.running ? '<button type="button" class="action" id="stopTagBatch">打完当前图后停止</button>' : ''}
+        <button type="button" class="action" id="exportTagResults" ${state.items.length ? '' : 'disabled'}>导出评分结果</button>
+        <button type="button" class="action danger" id="clearTagResults" ${state.items.length || state.restoring ? '' : 'disabled'}>清空本地测试结果</button>
+      </section>
+      <section class="batch-stats">
+        <button type="button" data-batch-filter="all" class="${state.filter === 'all' ? 'active' : ''}"><b>${state.items.length}</b><span>全部</span></button>
+        <button type="button" data-batch-filter="pending" class="${state.filter === 'pending' ? 'active' : ''}"><b>${totals.pending}</b><span>待打标</span></button>
+        <button type="button" data-batch-filter="review" class="${state.filter === 'review' ? 'active' : ''}"><b>${totals.review}</b><span>待复核</span></button>
+        <button type="button" data-batch-filter="reviewed" class="${state.filter === 'reviewed' ? 'active' : ''}"><b>${totals.reviewed}</b><span>已评分</span></button>
+        <button type="button" data-batch-filter="error" class="${state.filter === 'error' ? 'active' : ''}"><b>${totals.error}</b><span>失败</span></button>
+      </section>
+      ${state.message ? `<div class="notice">${studio.utils.escapeHtml(state.message)}</div>` : ''}
+      ${state.items.length ? `<section class="batch-workspace">
+        <aside class="batch-list">${visible.length ? visible.map(row => `<button type="button" data-battle-item="${row.id}" class="${row.id === item?.id ? 'active' : ''}"><img src="${row.preview}" alt="${studio.utils.escapeHtml(row.name)}"><span>${studio.utils.escapeHtml(row.name.split('/').pop())}</span><em class="${itemStatus(row)}">${({ pending: '待打标', tagging: '打标中', review: '待复核', reviewed: '已评分', error: '失败' })[itemStatus(row)]}</em></button>`).join('') : '<p>该分类下没有图片。</p>'}</aside>
+        <main class="batch-review">${item ? `<div class="batch-image"><img src="${item.preview}" alt="当前复核参考图"><b>${studio.utils.escapeHtml(item.name)}</b></div><div class="batch-models">${item.results ? item.results.map(resultEditor).join('') : '<div class="empty"><h2>这张参考图还没有打标</h2><p>点击上方“开始批量打标”。</p></div>'}</div>` : '<div class="empty"><h2>请从左侧选择一张参考图</h2></div>'}</main>
+      </section>` : '<section class="empty batch-empty"><h2>请先选择参考图文件夹</h2><p>可一次导入约50张参考图，也可之后继续添加。</p></section>'}
+      <p class="batch-session-note">参考图、标签修改和评分会自动保存在本机；刷新或关闭页面后仍会保留。</p>`;
+
+    container.querySelector('#tagFolderFiles').onchange = event => addFiles([...(event.target.files || [])], state, container);
+    container.querySelector('#tagMoreFiles').onchange = event => addFiles([...(event.target.files || [])], state, container);
+    container.querySelectorAll('[data-batch-filter]').forEach(button => button.onclick = () => { state.filter = button.dataset.batchFilter; render(container); });
+    container.querySelectorAll('[data-battle-item]').forEach(button => button.onclick = () => { state.selectedId = button.dataset.battleItem; persistMeta(state); render(container); });
+    const run = container.querySelector('#runTagBatch');
+    if (run) run.onclick = () => runBatch(state, container);
+    const stop = container.querySelector('#stopTagBatch');
+    if (stop) stop.onclick = () => { state.stopRequested = true; state.message = '收到停止请求，当前这张完成后停止。'; render(container); };
+    const exportButton = container.querySelector('#exportTagResults');
+    if (exportButton) exportButton.onclick = () => exportCsv(state);
+    const clearButton = container.querySelector('#clearTagResults');
+    if (clearButton) clearButton.onclick = async () => {
+      if (!window.confirm('确定清空本机保存的全部参考图、标签和评分吗？此操作不能撤销。')) return;
+      clearButton.disabled = true;
+      await clearPersistentState(state, container);
+    };
+    container.querySelectorAll('[data-set-tag]').forEach(button => button.onclick = async () => {
+      const result = item.results.find(row => row.provider === button.dataset.provider);
+      if (!recordTagChange(result, button.dataset.setTag, button.dataset.value)) return;
+      await persistItem(item);
+      queueSharedSave(state);
+      render(container);
+    });
+    container.querySelectorAll('[data-clear-tag]').forEach(button => button.onclick = async () => {
+      const result = item.results.find(row => row.provider === button.dataset.provider);
+      if (!recordTagChange(result, button.dataset.clearTag, '')) return;
+      await persistItem(item);
+      queueSharedSave(state);
+      render(container);
+    });
+    container.querySelectorAll('[data-rating]').forEach(button => button.onclick = async () => {
+      const result = item.results.find(row => row.provider === button.dataset.provider);
+      result.rating = Number(button.dataset.rating);
+      await persistItem(item);
+      queueSharedSave(state);
+      render(container);
+    });
+  }
+
+  studio.features.tagBattle = { initialize, render, axes, itemStatus, exportCsv, recordTagChange };
+})(globalThis.BayerStudio);
+
+
+(function registerEditorialLayout(studio) {
+  'use strict';
+  const roles = ['首页', '内页', '结尾页'];
+  // Based on the user's original poster prompt, with subsequent approved
+  // corrections. Image indices are selected roles, never hard-coded 图1/图2.
+  const posterPrompt = `根据本页选定的参考海报、可选产品实拍和用户指定文案，制作3:4竖版海报。以下是海报任务的稳定执行模板，不得被摄影换背景的70/30规则覆盖。
+一、视觉：选定参考图决定页面类型、字体气质、配色、英文栏目、标题层级、细线边框、装饰密度和留白；内页参考可重复使用，页数取自用户明确分段。只有视觉识别匹配复古杂志知识海报才采用已确认的奶油纸底、深棕衬线、浅蓝强调与少量黄色点缀。其他参考风格不套此配色。插画按本页花字主题重新创作。若有人物出镜，沿用对应参考图中的同一人物 IP，保持可辨认的脸型、五官、发型、人物比例及标志性特征，整套身份一致；根据新主题重新设计动作、表情、道具和场景。禁止照搬原插画或照描参考图中的人物姿态；禁止女生托头；骨头示意为白色。插画与装饰约10%，必要时略丰富或放大以平衡留白，不挤压文字。
+二、产品：先从用户产品图识别可确认的品牌名、产品名及明确简称，中英文及大小写匹配本页文案；匹配任一项则默认展示对应产品包装一次。未提及则不自行添加包装、贴纸、产品插画或品牌标识；用户明确为该页选择零款、一款或两款时以其选择为准。没有产品图不阻止生成，也不虚构包装。实际展示时，Logo、颜色、字样、结构、比例与可见面严格还原所选实拍，不以品牌文字代替包装，不挤压正文。
+三、文案：每页原文逐字保留，不补写、遗漏、改写或印出“主标题/正文”等输入字段标签。封面默认无正文，只排本页明确给出的主标题、副标题、标签和英文等封面元素；只有用户明确提供封面正文或明确要求时才排正文，缺省文字槽位留空。内页和结尾只可在本页辅助英文计划指定的槽位补充英文，不引入新医学结论，不从参考图复制无关主题。辅助英文使用短标注，不用长句：模块2至4短词且不超过24字符，插画不超过20字符，右上角四行每行一个短词，页脚两组短语合计不超过38字符。用户已指定英文不改。
+四、排版：先排文字，再安排插画与产品贴纸。导语与正文用固定宽度栏，两端对齐，首行顶格，非末行左右边界齐平，末行自然左对齐。按段落均匀处理对齐，字距保持自然一致，不为填补版面空白单独拉伸文字。同级标题、正文、英文、编号在所有内页共享字号、字重和颜色，不允许单页自行缩放。内页标题按语意和实际版宽自然排，不能刻意硬拆行；封面和结尾保持参考的标题组合。
+五、复古杂志参考的英文位置（当前参考中存在且本页提供文字时）：左上英文栏眉接细横线；右上保留四行英文角标；模块英文为浅蓝斜体，紧贴中文模块标题下方；图解短英文优先放插画上方的空位，图内标注贴对应对象；页脚英文在细线与星标之间单行排列，不能丢失。编号01/02为浅蓝斜体大字，略大于中文模块标题并配分隔斜杠。
+六、匹配已确认版式时默认共享字号（960×1280画布）：内页主标题56px、模块中文标题40px、模块英文30px、正文27px、导语28px、斜体编号64px、栏眉28px、页脚18px。封面与结尾标题按各自参考；不得为了局部填空改变同层级字号或文案字距。
+七、构图：严格沿用对应参考图的图文分区、文字栏、插画笔触与比例、边框、装饰和留白。换成本次文案及插画题材。可随文案长度自然换行，并小幅移动插画，保持参考图的图文关系。
+八、生成前检查：核对本页产品匹配与用户选择、文案无多字错字漏字、正文两端对齐、全套字号一致、英文层级完整且位置正确、插画同风格、白色骨头、无过挤或过空。用户本轮明确的花字、字号、颜色、对齐与其他创作要求优先于以上默认值。`;
+  const pageMarker = /^[ \t]*(?:#{1,3}[ \t]*)?(?:((?:第[ \t]*[0-9一二三四五六七八九十]+[ \t]*[页张]|图[ \t]*[0-9一二三四五六七八九十]+))(?:(?:[ \t]*[·・.—–-][ \t]*|[ \t]*[（(][ \t]*)([^\r\n：:]{1,80}?)(?:[ \t]*[）)])?(?:[ \t]*[：:]|[ \t]*(?=\r?$))|[ \t]*[：:])|(首页|封面|(?:知识)?内页[ \t]*\d*|结尾(?:总结)?页|尾页|总结页)[ \t]*[：:])[ \t]*(?:\r?\n)?/gm;
+  function pages(text, references) {
+    const source = String(text || '').trim();
+    if (!source) return [];
+    const markers = [...source.matchAll(pageMarker)];
+    if (!markers.length) return [{ copy: source, role: '首页', ref: 0 }];
+    const prefix = source.slice(0, markers[0].index).trim();
+    const items = markers.map((match, index) => {
+      const marker = match[2] || match[3] || match[1];
+      const role = /首页|封面/.test(marker) ? '首页' : /内页/.test(marker) ? '内页' : /结尾|尾页|总结页/.test(marker) ? '结尾页'
+        : index === 0 ? '首页' : index === markers.length - 1 ? '结尾页' : '内页';
+      const ref = role === '首页' ? 0 : role === '结尾页' && references >= 3 ? references - 1 : Math.min(1, references - 1);
+      return { copy: source.slice(match.index + match[0].length, markers[index + 1]?.index ?? source.length).trim(), role, ref: Math.max(0, ref), instructions: prefix };
+    });
+    return items;
+  }
+
+  function describePages(plan) {
+    return plan.length
+      ? plan.map((page, i) => `第 ${i + 1} 页（${page.role}）`).join('、')
+      : '';
+  }
+
+  function parseCopy(copy, instructions = '') {
+    const blocks = String(copy).split(/\r?\n/).filter(line => line.trim()).map((line, i) => {
+      const match = line.match(/^\s*(英文栏目|英文主标题|中文主标题|主标题|标题|导语|序号|模块标题|模块英文副标题|正文|提示区标题|提示区正文|页脚)\s*[：:]\s*(.*)$/);
+      return { role: match?.[1] || (i === 0 ? '标题' : '正文'), text: match?.[2] ?? line };
+    });
+    const sizes = { 英文栏目:22, 英文主标题:72, 中文主标题:78, 主标题:78, 标题:78, 导语:20, 序号:52, 模块标题:40, 模块英文副标题:30, 正文:18, 提示区标题:28, 提示区正文:18, 页脚:16 };
+    const styling = [instructions, ...blocks.filter(block => /^(排版|样式|花字)要求[：:]/.test(block.text)).map(block => block.text)].join('\n');
+    return blocks.filter(block => !/^(排版|样式|花字)要求[：:]/.test(block.text)).map(block => {
+      const role = block.role;
+      const directive = styling.match(new RegExp(`(?:${role}|${/标题/.test(role) && !/模块|提示区/.test(role) ? '主标题' : role})[^。；\\n]{0,45}`))?.[0] || '';
+      return { ...block, size: Math.min(120, Math.max(12, Number(directive.match(/(\d+)\s*(?:pt|号)/i)?.[1]) || sizes[role])),
+        align: /居中/.test(directive) ? 'center' : /右对齐/.test(directive) ? 'right' : 'left',
+        color: directive.match(/#[0-9a-f]{6}\b/i)?.[0] || (/浅蓝/.test(directive) || /序号|模块英文/.test(role) ? '#478bc0' : /黑色/.test(directive) ? '#222222' : '#62290f'),
+        font: /黑体|无衬线/.test(directive) ? 'sans-serif' : 'serif' };
+    });
+  }
+
+  function wrap(text, width, measure) {
+    const lines = [];
+    let line = '';
+    for (const part of text.match(/[A-Za-z0-9]+(?:[-’'][A-Za-z0-9]+)*|./gu) || []) {
+      if (line && measure(line + part) > width) {
+        const closing = /^[，。！？；：、）》〉」』】’”%>]/u.test(part);
+        const tail = closing && line.match(/[^\s，。！？；：、）》〉」』】’”%>][，。！？；：、）》〉」』】’”%>]*$/u)?.[0];
+        if (tail && line.length > tail.length) {
+          lines.push(line.slice(0, -tail.length));
+          line = tail;
+        } else {
+          lines.push(line);
+          line = '';
+        }
+      }
+      line += part;
+    }
+    if (line) lines.push(line);
+    return lines;
+  }
+
+  // Only an affirmative visual classification enables the approved template.
+  function recognizedStyle(value) {
+    return value?.kind === 'retro-editorial' && Number(value.confidence) >= 80 ? 'retro-editorial' : 'reference';
+  }
+
+  function editorialContent(page) {
+    const lines = String(page.copy || '').split(/\r?\n/).map(value => value.trim()).filter(Boolean);
+    const data = { title: '', eyebrow: '', corner: '', ribbon: '', footer: '', intro: '', sections: [], tip: '' };
+    const aliases = { '英文背景大字': 'eyebrow', '英文主标题': 'eyebrow', '英文栏目': 'eyebrow', '右上角标签': 'corner',
+      '主标题': 'title', '中文主标题': 'title', '标题': 'title', '副标题': 'ribbon', '底部定位': 'footer', '页脚': 'footer', '英文页脚': 'footer', '页脚英文': 'footer', '底部英文': 'footer', '英文引导语': 'footer', '结尾英文引导语': 'footer', '导语': 'intro' };
+    const headings = page.english?.sections || [];
+    let section = null;
+    for (const line of lines) {
+      const labeled = line.match(/^([^：:]{1,14})[：:]\s*(.*)$/);
+      const role = labeled && aliases[labeled[1]];
+      if (role) { data[role] = labeled[2]; continue; }
+      if (/^(?:排版|样式|花字)要求[：:]/.test(line)) continue;
+      if (/^(?:⚠️?\s*)?(?:小提示|提示)[：:]/.test(line)) { data.tip += line + '\n'; continue; }
+      const match = headings.find(item => item.heading === line || line.startsWith(item.heading + ' '));
+      const isHeading = page.role === '内页' && (match || /^(?:模块标题[：:]|第[一二三四五六七八九十0-9]+关[：:])/.test(line) || (/^[^。！？]{2,32}$/.test(line) && !/^正文[：:]/.test(line)));
+      if (isHeading && data.title) {
+        const bilingual = line.match(/^(.+?[\u4e00-\u9fff])\s+([A-Za-z][A-Za-z &-]+)$/);
+        section = { heading: bilingual?.[1] || line.replace(/^模块标题[：:]\s*/, ''), body: '', english: bilingual?.[2] || match?.english || '', caption: match?.caption || '' };
+        data.sections.push(section);
+      } else if (!data.title) data.title = line;
+      else if (section) section.body += (section.body ? '\n' : '') + line.replace(/^正文[：:]\s*/, '');
+      else data.intro += (data.intro ? '\n' : '') + line.replace(/^正文[：:]\s*/, '');
+    }
+    if (page.role !== '首页') {
+      data.eyebrow ||= page.english?.eyebrow || '';
+      data.corner ||= page.english?.corner || '';
+      data.footer ||= page.english?.footer || '';
+    }
+    if (page.role === '结尾页' && !data.footer && /^[A-Za-z][A-Za-z0-9 &/'’–—-]+$/.test(data.eyebrow)) data.footer = data.eyebrow;
+    return data;
+  }
+
+  function series(plan, requirements = '') {
+    const values = { title: 56, module: 40, english: 30, body: 27, intro: 28, closingBody: 33, number: 64, eyebrow: 28, footer: 18, cover: 118, closing: 90 };
+    const names = { title: '主标题', module: '模块标题', english: '模块英文副标题', body: '正文', intro: '导语', number: '序号' };
+    for (const [key, name] of Object.entries(names)) {
+      const match = requirements.match(new RegExp(name + '[^。；\\n]{0,18}?(\\d+)\\s*(pt|px|号)', 'i'));
+      if (match) values[key] = Math.max(12, Math.min(140, Number(match[1]) * (match[2].toLowerCase() === 'pt' ? 4 / 3 : 1)));
+    }
+    const headingColor = requirements.match(/主标题[^。；\n]{0,30}?(#[0-9a-f]{6})\b/i)?.[1] || '#62290f';
+    const bodyColor = requirements.match(/正文[^。；\n]{0,30}?(#[0-9a-f]{6})\b/i)?.[1] || '#62290f';
+    return Object.freeze({ sizes: Object.freeze(values), headingColor, bodyColor, paper: requirements.match(/背景(?:色)?\s*[：为=]?\s*(#[0-9a-f]{6})\b/i)?.[1] || '#faf3e5',
+      bodyAlign: /正文[^。；\n]{0,20}居中/.test(requirements) ? 'center' : /正文[^。；\n]{0,20}右对齐/.test(requirements) ? 'right' : /正文[^。；\n]{0,12}(?:左对齐|左齐)/.test(requirements) ? 'left' : 'justify' });
+  }
+
+  // A suite is a sequence of complete, independently editable pages. Never
+  // replace a reference-led poster with two cropped drawings on a fixed canvas.
+  function pageRequest(plan, index, options) {
+    const page = plan[index];
+    if (!page?.copy?.trim()) throw new Error('请填写这一页的文案。');
+    const reference = options.references[page.ref];
+    if (!reference) throw new Error('请为这一页选择参考图。');
+    const products = (page.products || []).map(i => options.products[i]);
+    if (products.length > 2 || products.some(value => !value)) throw new Error('请检查这一页选择的产品。');
+    const overrides = [page.instructions, options.brief, options.manual].filter(Boolean).join('\n');
+    const contract = series(plan, overrides);
+    const english = page.role === '首页' ? {} : page.english || {};
+    // Same-role result is stronger than a cover for the second inside page.
+    const candidates = (options.results || []).map((image, i) => ({ image, i }))
+      .filter(item => item.image && item.i !== index && item.i < index);
+    const anchor = candidates.find(item => plan[item.i].role === page.role) || candidates[0];
+    const dataUrl = image => image ? `data:${image.mimeType || 'image/jpeg'};base64,${image.b64Json}` : '';
+    const prompt = [posterPrompt,
+      `本次共${plan.length}页，当前只生成第${index + 1}页（${page.role}），一张独立完整竖版，不是多页拼图。参考图不是内容来源；本页原始文案单独提供。`,
+      page.style === 'retro-editorial' ? `本套统一设计规格（960×1280设计坐标，输出等比放大，不是固定坐标模板）：${JSON.stringify(contract)}。内页同级字号不能逐页改变。` : '',
+      `本页辅助英文计划：${JSON.stringify(english)}。保留各英文职责与参考位置；模块英文、图解短标注和图内标注都按本页参考图的实际位置。原文明确英文优先于此辅助计划，不把JSON或字段名印出来。`,
+      '保留参考图的版面和插画比例。内页主标题自然换行，插画位置可随文案长度小幅移动，不改图文分区与画风。',
+      anchor ? `套图锚点来自已生成的第${anchor.i + 1}页（${plan[anchor.i].role}）。只锁定同套字体、配色、插画笔触及同级字号；同为内页时严格比对主标题、模块标题、蓝色斜体编号与正文大小。不要复制锚点文案、插画主题、产品或跨页面类型套用构图。` : '',
+      overrides ? `用户本轮明确要求（冲突时优先）：\n${overrides}` : ''
+    ].filter(Boolean).join('\n\n');
+    const previous = options.feedback ? options.results?.[index] : null;
+    return { editorialPage: true, editorialRender: 'full-page-v2', editorialStyle: page.style,
+      editorialRole: page.role, editorialCopy: page.copy, prompt, productDataUrls: products,
+      referenceDataUrls: [reference], setAnchorImageDataUrl: dataUrl(anchor?.image),
+      ...(previous ? { isRevision: true, previousImageDataUrl: dataUrl(previous), feedback: options.feedback } : {}),
+      ratio: '3:4' };
+  }
+
+  function setRequest(plan, options) {
+    if (plan.length < 2 || plan.length > 20) throw new Error('请确认需要生成的海报页数。');
+    const pages = plan.map((page, index) => {
+      pageRequest(plan, index, { ...options, results: [] });
+      return {
+        role: page.role, copy: page.copy, reference: page.ref, products: page.products || [],
+        english: page.role === '首页' ? {} : page.english || {}, instructions: page.instructions || ''
+      };
+    });
+    const referenceIds = [...new Set(pages.map(page => page.reference))];
+    const productIds = [...new Set(pages.flatMap(page => page.products))];
+    return {
+      editorialRender: options.controlledLayout ? 'poster-art-v2' : 'poster-set-v1',
+      prompt: posterPrompt,
+      editorialOverrides: [options.brief, options.manual].filter(Boolean).join('\n'),
+      referenceDataUrls: referenceIds.map(index => options.references[index]),
+      productDataUrls: productIds.map(index => options.products[index]),
+      editorialPages: pages.map(page => ({
+        ...page,
+        reference: referenceIds.indexOf(page.reference),
+        products: page.products.map(index => productIds.indexOf(index))
+      }))
+    };
+  }
+
+  async function splitSet(image, grid, count) {
+    const { columns, rows, pageWidth, pageHeight } = grid || {};
+    if (![columns, rows, pageWidth, pageHeight].every(value => Number.isSafeInteger(value) && value > 0)
+      || columns * rows < count || pageWidth * 4 !== pageHeight * 3) {
+      throw new Error('未收到有效的海报分页信息。');
+    }
+    const source = await fetch(`data:${image.mimeType || 'image/jpeg'};base64,${image.b64Json}`);
+    const bitmap = await createImageBitmap(await source.blob());
+    try {
+      if (bitmap.width !== columns * pageWidth || bitmap.height !== rows * pageHeight) {
+        throw new Error('生图服务返回的尺寸与套图版式不符，无法安全拆分。');
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = pageWidth;
+      canvas.height = pageHeight;
+      const ctx = canvas.getContext('2d', { alpha: false });
+      if (!ctx) throw new Error('当前浏览器无法拆分海报套图。');
+      return Array.from({ length: count }, (_, index) => {
+        const x = index % columns * pageWidth;
+        const y = Math.floor(index / columns) * pageHeight;
+        ctx.drawImage(bitmap, x, y, pageWidth, pageHeight, 0, 0, pageWidth, pageHeight);
+        const data = canvas.toDataURL('image/jpeg', 0.96);
+        if (!data.startsWith('data:image/jpeg;base64,')) throw new Error('海报导出失败。');
+        return { mimeType: 'image/jpeg', b64Json: data.split(',')[1] };
+      });
+    } finally {
+      bitmap.close();
+    }
+  }
+
+  async function composeRetro(image, page, requirements, mock, validateOnly, contract) {
+    const canvas = document.createElement('canvas'); canvas.width = 960; canvas.height = 1280;
+    const ctx = canvas.getContext('2d');
+    const data = editorialContent(page), sizes = contract.sizes;
+    const ink = '#62290f', blue = '#1389c2', pale = '#afd9ee', yellow = '#f8c447';
+    ctx.fillStyle = contract.paper; ctx.fillRect(0, 0, 960, 1280); ctx.textBaseline = 'top';
+    const nodes = [];
+    const text = (value, x, y, width, size, color = ink, options = {}) => {
+      if (!value) return y;
+      const latin = options.latin;
+      const font = `${options.italic ? 'italic ' : ''}${options.bold ? '700 ' : ''}${size}px ${latin ? '"Bodoni 72","Didot",serif' : '"Songti SC","Noto Serif CJK SC",serif'}`;
+      ctx.font = font;
+      if (options.singleLine) {
+        size *= Math.min(1, width / Math.max(1, ctx.measureText(String(value)).width));
+        ctx.font = font.replace(/\d+(?:\.\d+)?px/, size + 'px');
+      }
+      const lines = String(value).split('\n').flatMap(paragraph => {
+        const measure = candidate => ctx.measureText(candidate).width;
+        const wrapped = options.singleLine ? [paragraph] : wrap(paragraph, width, measure);
+        if (options.coverTitle && wrapped.length === 2) {
+          const candidates = [...paragraph.matchAll(/ (?=[\u3400-\u9fff])/gu)].map(({ index }) => [paragraph.slice(0, index), paragraph.slice(index + 1)])
+            .filter(parts => parts.every(part => measure(part) <= width && /[\u3400-\u9fff]{2}/u.test(part)))
+            .sort((a, b) => Math.abs(measure(a[0]) - measure(a[1])) - Math.abs(measure(b[0]) - measure(b[1])));
+          if (candidates[0]) wrapped.splice(0, 2, ...candidates[0]);
+        }
+        return wrapped.map((line, index) => ({ line, last: index === wrapped.length - 1 }));
+      });
+      const height = lines.length * size * 1.32;
+      nodes.push({ kind: 'text', value, lines, x, y, width, height, size, font: ctx.font, color, align: options.align || 'left' });
+      return y + height;
+    };
+    const rect = (x, y, w, h, fill = '', stroke = '', radius = 0) => nodes.push({ kind: 'rect', x, y, w, h, fill, stroke, radius });
+    const star = (x, y, size = 28) => text('✦', x, y, size * 1.5, size, yellow);
+    const spot = (cell, x, y, w, h) => nodes.push({ kind: 'art', cell, x, y, w, h });
+    const footer = () => {
+      const baseline = page.role === '结尾页' ? 1167 : 1240;
+      rect(58, baseline, 131, 2, '#802334');
+      rect(771, baseline, 131, 2, '#802334');
+      star(198, baseline - 15);
+      star(730, baseline - 15);
+      text(data.footer, 245, baseline - 12, 470, sizes.footer, ink, { latin: page.role !== '首页', align: 'center', singleLine: true });
+    };
+    if (page.role === '内页') {
+      text(data.eyebrow, 48, 27, 650, sizes.eyebrow, ink, { latin: true });
+      rect(440, 43, 325, 1, ink);
+      text(data.corner.replace(/ +/g, '\n'), 790, 25, 130, 16, ink, { latin: true });
+      const withArtwork = data.sections.length > 0;
+      let y = text(data.title, 48, 85, withArtwork ? 685 : 864, sizes.title, contract.headingColor, { bold: true }) + 13;
+      if (withArtwork) spot(0, 754, 67, 151, 134);
+      if (data.intro) {
+        star(34, y - 2);
+        y = text(data.intro, 84, y, 846, sizes.intro, contract.bodyColor, { align: contract.bodyAlign }) + 19;
+      }
+      for (const [index, section] of data.sections.entries()) {
+        const top = y;
+        text(String(index + 1).padStart(2, '0'), 60, top + 10, 100, sizes.number, blue, { latin: true, italic: true });
+        text('/', 138, top + 23, 22, 30);
+        let contentY = text(section.heading, 165, top + 18, 715, sizes.module, ink, { bold: true });
+        contentY = text(section.english, 165, contentY + 3, 700, sizes.english, blue, { latin: true, italic: true }) + 12;
+        const bottom = text(section.body, 51, contentY, 598, sizes.body, contract.bodyColor, { align: contract.bodyAlign });
+        const height = Math.max(196, bottom - top + 19);
+        rect(30, top, 904, height, '', '#802334', 12);
+        text(section.caption, 677, top + 40, 222, 16, blue, { latin: true, align: 'center' });
+        if (index < 2) spot(index + 1, 683, Math.max(top + 65, top + (height - 150) / 2), 208, Math.min(150, height - 76));
+        y = top + height + 12;
+      }
+      if (data.tip) { const end = text(data.tip.trim(), 65, y + 10, 825, Math.min(23, sizes.body), ink, { align: contract.bodyAlign }); rect(30, y, 904, end - y + 25, '#fce9b9', '#802334', 12); y = end + 33; }
+      if (y > 1176) throw new Error('这页文案较长，请拆分页面，或统一调整整套正文字号。');
+    } else {
+      text(data.eyebrow, 42, 48, 876, 87, ink, { latin: true, align: 'center', bold: true, singleLine: true });
+      rect(48, 174, 864, 1, ink); star(465, 158);
+      if (page.role === '首页') {
+        text(data.corner, 530, 230, 365, 30, ink, { align: 'center' });
+        const titleEnd = text(data.title, 55, 326, 850, sizes.cover, contract.headingColor, { align: 'center', bold: true, coverTitle: true });
+        rect(235, titleEnd + 7, 490, 5, yellow);
+        const ribbonTop = Math.max(698, titleEnd + 34);
+        if (data.ribbon) {
+          const ribbonEnd = text(data.ribbon, 172, ribbonTop + 13, 616, 33, ink, { align: 'center' });
+          if (ribbonEnd + 12 > 964) throw new Error('封面副标题放不下，请调整文字长度。');
+          rect(153, ribbonTop, 654, ribbonEnd - ribbonTop + 12, pale);
+        }
+        const bodyEnd = text(data.intro, 76, ribbonTop + 100, 808, sizes.intro, ink, { align: contract.bodyAlign });
+        if (data.intro && bodyEnd > 966) throw new Error('封面文字放不下，请调整封面文字长度。');
+        if (ribbonTop > 923) throw new Error('封面标题放不下，请调整标题长度。');
+        spot(0, 73, 971, 211, 174); spot(1, 691, 991, 175, 146);
+      } else {
+        const titleEnd = text(data.title, 52, 232, 856, sizes.closing, contract.headingColor, { align: 'center', bold: true });
+        const end = text(data.intro, 58, Math.max(525, titleEnd + 24), 604, sizes.closingBody, contract.bodyColor, { align: contract.bodyAlign });
+        if (end > 985) throw new Error('结尾文案较长，请拆分页面或统一调整字号。');
+        spot(0, 689, 562, 187, 159); spot(1, 713, 794, 155, 133);
+        if (data.ribbon) {
+          const ribbonEnd = text(data.ribbon, 154, 1042, 652, sizes.closingBody, contract.bodyColor, { align: contract.bodyAlign });
+          if (ribbonEnd > 1136) throw new Error('结尾文案较长，请调整篇幅或拆分内容。');
+          rect(128, 1026, 704, Math.max(81, ribbonEnd - 1007), pale, '', 40);
+        }
+      }
+    }
+    footer();
+    if (nodes.some(node => node.kind === 'text' && node.y + node.height > 1280)) throw new Error('文案超出海报边界，请调整文字长度。');
+    let art;
+    if (!validateOnly && !mock && image) {
+      art = new Image();
+      await new Promise((resolve, reject) => { art.onload = resolve; art.onerror = () => reject(new Error('插画未能读取')); art.src = `data:${image.mimeType || 'image/jpeg'};base64,${image.b64Json}`; });
+    }
+    // Background/card fills first so they cannot cover previously measured text.
+    for (const node of nodes.filter(node => node.kind === 'rect')) {
+      const rounded = node.radius > 0 && typeof ctx.roundRect === 'function';
+      if (rounded) {
+        ctx.beginPath();
+        ctx.roundRect(node.x, node.y, node.w, node.h, node.radius);
+      }
+      if (node.fill) {
+        ctx.fillStyle = node.fill;
+        if (rounded) ctx.fill(); else ctx.fillRect(node.x, node.y, node.w, node.h);
+      }
+      if (node.stroke) {
+        ctx.strokeStyle = node.stroke;
+        ctx.lineWidth = node.radius ? 2 : 1.5;
+        if (rounded) ctx.stroke(); else ctx.strokeRect(node.x, node.y, node.w, node.h);
+      }
+    }
+    for (const node of nodes.filter(node => node.kind !== 'rect')) {
+      if (node.kind === 'art') {
+        if (art) {
+          const rows = image.posterArtwork ? 2 : 1;
+          if (node.cell >= 2 * rows) continue;
+          const width = art.naturalWidth / 2;
+          const height = art.naturalHeight / rows;
+          const inset = image.posterArtwork ? 0.12 : 0;
+          const sw = width * (1 - inset * 2);
+          const sh = height * (1 - inset * 2);
+          const scale = Math.min(node.w / sw, node.h / sh);
+          ctx.globalCompositeOperation = image.posterArtwork ? 'multiply' : 'source-over';
+          ctx.drawImage(art, (node.cell % 2 + inset) * width, (Math.floor(node.cell / 2) + inset) * height, sw, sh,
+            node.x + (node.w - sw * scale) / 2, node.y + (node.h - sh * scale) / 2, sw * scale, sh * scale);
+          ctx.globalCompositeOperation = 'source-over';
+        }
+      } else {
+        ctx.font = node.font; ctx.fillStyle = node.color;
+        node.lines.forEach(({ line, last }, i) => {
+          const top = node.y + i * node.size * 1.32;
+          if (node.align === 'justify' && !last) {
+            const glyphs = line.match(/[A-Za-z0-9]+(?:[-’'][A-Za-z0-9]+)*|./gu) || [];
+            if (glyphs.length > 1) {
+              const widths = glyphs.map(glyph => ctx.measureText(glyph).width);
+              const gap = (node.width - widths.reduce((sum, value) => sum + value, 0)) / (glyphs.length - 1);
+              let left = node.x;
+              glyphs.forEach((glyph, index) => { ctx.fillText(glyph, left, top); left += widths[index] + gap; });
+              return;
+            }
+          }
+          const slack = node.width - ctx.measureText(line).width;
+          ctx.fillText(line, node.x + (node.align === 'center' ? slack / 2 : node.align === 'right' ? slack : 0), top);
+        });
+      }
+    }
+    if (validateOnly) return nodes;
+    return { ...image, mimeType: 'image/jpeg', b64Json: canvas.toDataURL('image/jpeg', 0.94).split(',')[1] };
+  }
+
+  async function fitSeries(plan, requirements = '') {
+    const contract = series(plan, requirements);
+    for (const page of plan) await composeRetro(null, page, requirements, true, true, contract);
+    return contract;
+  }
+
+  async function compose(image, page, requirements, mock, validateOnly = false, contract) {
+    if (page.renderMode === 'full-page-v2') return validateOnly ? undefined : image;
+    if (page.style === 'retro-editorial') return composeRetro(image, page, requirements, mock, validateOnly, contract || series([page], requirements));
+    if (page.style === 'reference') return validateOnly ? undefined : image;
+    const canvas = document.createElement('canvas');
+    canvas.width = 1080;
+    canvas.height = 1440;
+    const ctx = canvas.getContext('2d');
+    const blocks = parseCopy(page.copy, [requirements, page.instructions].filter(Boolean).join('\n'));
+    const paper = requirements.match(/背景(?:色)?\s*[：为=]?\s*(#[0-9a-f]{6})\b/i)?.[1] || '#faf3e5';
+    ctx.fillStyle = paper;
+    ctx.fillRect(0, 0, 1080, 1440);
+    ctx.strokeStyle = '#853d28';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(40, 40, 1000, 1360);
+    const width = 920;
+    let y = page.role === '首页' ? 125 : 82;
+    for (const block of blocks) {
+      const px = Math.round(block.size * 4 / 3);
+      ctx.font = `${/标题/.test(block.role) ? 700 : 400} ${px}px ${block.font === 'serif' ? '"Songti SC","Noto Serif CJK SC",serif' : 'sans-serif'}`;
+      ctx.fillStyle = block.color;
+      ctx.textBaseline = 'top';
+      const m = text => ctx.measureText(text).width;
+      const lines = wrap(block.text, width, m);
+      const step = px * 1.4;
+      if (y + step * lines.length > 1120) throw new Error('这页文案放不下，请拆成两页或指定更小字号。');
+      lines.forEach((line, i) => {
+        if (block.align === 'justify' && i < lines.length - 1 && Array.from(line).length > 1) {
+          const chars = Array.from(line);
+          const gap = (width - chars.reduce((sum, char) => sum + m(char), 0)) / (chars.length - 1);
+          let x = 80;
+          chars.forEach(char => { ctx.fillText(char, x, y); x += m(char) + gap; });
+        } else ctx.fillText(line, 80 + (block.align === 'center' ? (width - m(line)) / 2 : block.align === 'right' ? width - m(line) : 0), y);
+        y += step;
+      });
+      y += /标题/.test(block.role) ? 22 : 12;
+    }
+    if (validateOnly) return;
+    if (!mock) {
+      const art = new Image();
+      const ready = new Promise((resolve, reject) => { art.onload = resolve; art.onerror = () => reject(new Error('插画未能读取')); });
+      art.src = `data:${image.mimeType || 'image/jpeg'};base64,${image.b64Json}`;
+      await ready;
+      const w = Math.min(550, 260 * art.naturalWidth / art.naturalHeight);
+      const h = Math.min(260, 550 * art.naturalHeight / art.naturalWidth);
+      ctx.drawImage(art, 1000 - w, 1380 - h, w, h);
+    }
+    const data = canvas.toDataURL('image/jpeg', 0.94);
+    return { ...image, mimeType: 'image/jpeg', b64Json: data.split(',')[1] };
+  }
+
+  studio.features.editorialLayout = { pages, roles, describePages, parseCopy, wrap, compose, recognizedStyle, editorialContent, series, posterPrompt, pageRequest, setRequest, splitSet, fitSeries };
 })(globalThis.BayerStudio);
 
 
@@ -13918,6 +15084,11 @@
       .replace(/&#([0-9]+);/g, (_, code) => String.fromCodePoint(Number.parseInt(code, 10)));
   }
 
+  function initialPosterLayout() {
+    return ['127.0.0.1', 'localhost'].includes(globalThis.location?.hostname || '')
+      && new URLSearchParams(globalThis.location.search).get('posterLayout') === 'retro-editorial' ? 'retro-editorial' : '';
+  }
+
   function initialize() {
     const liveMode = studio.services.experienceGeneration.isLiveMode();
     studio.state.experience = {
@@ -13925,11 +15096,27 @@
       referenceImages: [],
       prompt: '',
       creationBrief: '',
-      presentationSource: 'reference',
-      generationMode: 'auto',
-      resolvedGenerationMode: '',
-      setDetection: null,
-      outputCount: 2,
+      presentationSource: 'product',
+      generationMode: 'single',
+      backgroundMode: 'default',
+      sampleConfirmed: false,
+      sampleEdits: [],
+      manicureCorrections: {},
+      propAttempts: {},
+      qualityPreview: null,
+      manualCreativePrompt: '',
+      backgroundPlan: '',
+      analyzed: false,
+      decorativeText: false,
+      editorialPages: [],
+      posterLayoutOverride: initialPosterLayout(),
+      editorialTags: [],
+      editorialReferenceRoles: [],
+      editorialReferenceStyles: [],
+      editorialEnglish: [],
+      decorativeCopy: '',
+      productAnalysis: null,
+      selectedSceneRecommendation: '',
       variationIndex: 0,
       currentVariation: '',
       ratio: '3:4',
@@ -13944,41 +15131,39 @@
       waitStartedAt: 0,
       waitTimer: null,
       liveMode,
-      message: liveMode ? '真实接口模式：换背景直接调用 GPT 图像编辑；每次结果都会同步到统一历史。' : '本地预览模式：上传图片不会写入素材库，模拟结果也不会写入正式历史。',
+      message: '',
       usage: null,
       historySync: '',
       historySyncMessage: '',
-      lastHistoryRecord: null
+      lastHistoryRecord: null,
+      pendingPosterHistory: []
     };
-  }
-
-  function taskSwitcher() {
-    return `<section class="creation-task-switcher compact"><div><b>选择创作方式</b><span>上传创作与库内创作分开处理</span></div><div class="creation-task-grid two"><button class="creation-task active" data-source-mode="experience"><b>快速创作</b><span>上传产品图与参考图</span><em>推荐</em></button><button class="creation-task" data-source-mode="library"><b>库内智能创作</b><span>使用产品库、场景库和套图能力</span></button></div></section>`;
   }
 
   function uploadCollection(images, kind) {
     const isProduct = kind === 'product';
-    const title = isProduct ? '产品图' : '参考图';
-    const heading = isProduct ? '产品图／带产品成片' : '参考图';
+    const title = isProduct ? '产品图' : '参考／背景图';
+    const heading = title;
     const inputId = isProduct ? 'experienceProductAdd' : 'experienceReferenceAdd';
     const cards = images.map((image, index) => `<article class="experience-upload-item">
       <img src="${image.dataUrl}" alt="${title}${index + 1}">
-      <div><b>${isProduct ? 'P' : 'R'}${index + 1} · ${title}${index + 1}</b><small>${studio.utils.escapeHtml(image.uploadMessage || '已载入')}</small></div>
+      <div><b>${title} ${index + 1}</b></div>
       <button class="experience-remove-image" type="button" data-remove-kind="${kind}" data-remove-index="${index}" aria-label="删除${title}${index + 1}">×</button>
     </article>`).join('');
     const hint = isProduct
-      ? '每张图中可识别的产品默认全部出现'
-      : 'R1 默认控制构图、摆放、景别和视觉占比';
-    return `<section class="experience-upload-group"><div class="experience-upload-heading"><div><b>${heading}${isProduct ? ' · 必填' : ' · 可选'}</b><span>${hint}</span></div><em>${images.length}/${isProduct ? 6 : 4}</em></div>
+      ? '只上传1张也能开始；系统只使用已展示的产品面'
+      : '';
+    return `<section class="experience-upload-group"><div class="experience-upload-heading"><div><b>${heading} · 可选</b><span>${hint}</span></div><em>${images.length}/${isProduct ? 6 : 4}</em></div>
       <div class="experience-upload-list">${cards}<label class="experience-upload experience-upload-add" for="${inputId}"><input id="${inputId}" type="file" multiple accept="image/png,image/jpeg,image/webp"><span class="upload-plus">＋</span><b>添加${title}</b><small>可一次选择多张，也可把图片直接拖到这里</small></label></div>
+      <div class="actions"><button type="button" class="action" data-pick-asset="${kind}" ${images.length >= (isProduct ? 6 : 4) ? 'disabled' : ''}>从${isProduct ? '产品资产' : '场景资产'}选择</button></div>
     </section>`;
   }
 
-  function historyRecord(payload, result, prompt, feedback, state) {
+  function historyRecord(payload, result, prompt, feedback, state, pageIndex) {
     if (!result?.b64Json) return null;
     const createdAt = new Date().toISOString();
     return {
-      id: `experience-${payload.requestId || globalThis.crypto?.randomUUID?.() || Date.now()}`,
+      id: `experience-${payload.requestId || globalThis.crypto?.randomUUID?.() || Date.now()}${Number.isInteger(pageIndex) ? '-page-' + (pageIndex + 1) : ''}`,
       rating: 0,
       tags: [],
       note: feedback || '',
@@ -14004,9 +15189,6 @@
     const results = state.results.length ? state.results : (state.result ? [state.result] : []);
     if (!results.length) return '';
     const selectedIndex = Math.min(state.selectedResultIndex, results.length - 1);
-    const retentionCopy = state.historySync === 'mock'
-      ? '这是本地模拟预览，不会写入正式历史。真实生成时，每张结果都会自动进入统一历史。'
-      : '无论效果如何都会保留到统一历史；再次生成也会新增一条记录。';
     const syncMarkup = state.historySync === 'synced'
       ? '<span class="history-sync synced">✓ 已同步到统一历史</span>'
       : state.historySync === 'pending'
@@ -14014,52 +15196,97 @@
         : '';
     const cards = results.map((result, index) => {
       const src = `data:${result.mimeType || 'image/jpeg'};base64,${result.b64Json}`;
-      const role = state.setDetection?.shots?.[index]?.role;
+      const role = state.editorialPages[index]?.role || state.setDetection?.shots?.[index]?.role;
       return `<figure class="generated-card experience-result-card ${index === selectedIndex ? 'selected' : ''}" data-result-index="${index}"><img src="${src}" alt="生成结果${index + 1}"><figcaption><b>${results.length > 1 ? (role || `套图 ${index + 1}`) : '快速创作结果'}</b><a class="action" href="${src}" download="experience-image-${index + 1}.jpg">下载</a></figcaption></figure>`;
     }).join('');
-    return `<section class="experience-result"><div class="history-heading"><div><h2>本次结果${results.length > 1 ? ` · ${results.length} 张` : ''}</h2><p>${retentionCopy}</p></div><div class="history-sync-actions">${syncMarkup}</div></div>
+    return `<section class="experience-result"><div class="history-heading"><h2>本次结果${results.length > 1 ? ` · ${results.length} 张` : ''}</h2><div class="history-sync-actions">${syncMarkup}</div></div>
       <div class="experience-set-results">${cards}</div>
-      <div class="experience-feedback"><div class="fresh-variation"><b>${results.length > 1 ? `当前选中套图 ${selectedIndex + 1}` : '想再生成一个版本？'}</b><span>${results.length > 1 ? '修改只作用于选中图片，其他套图保持不变；同时引用套图首张锁定风格与道具。' : '沿用参考图的构图和展示关系，只变化允许调整的细节。'}</span>${results.length === 1 ? `<button class="action" id="experienceFreshVariation" ${state.running ? 'disabled' : ''}>再生成一张</button>` : ''}</div><label><b>只修改选中的这张</b><textarea id="experienceFeedback" rows="4" placeholder="写明要改的内容，未提及部分尽量保持。">${studio.utils.escapeHtml(state.feedback)}</textarea></label><button class="action primary" id="experienceRegenerate" ${state.running ? 'disabled' : ''}>修改这张</button></div></section>`;
+      <div class="experience-feedback"><div class="fresh-variation"><b>${results.length > 1 ? `当前选中第 ${selectedIndex + 1} 张` : '想再生成一个版本？'}</b><span>${results.length > 1 ? '修改只作用于选中图片。' : '沿用参考图的构图和展示关系。'}</span>${results.length === 1 && !state.editorialPages.length ? `<button class="action" id="experienceFreshVariation" ${state.running ? 'disabled' : ''}>再生成一张</button>` : ''}</div><label><b>只修改选中的这张</b><textarea id="experienceFeedback" rows="4" placeholder="写明要改的内容，未提及部分尽量保持。">${studio.utils.escapeHtml(state.feedback)}</textarea></label><button class="action primary" id="experienceRegenerate" ${state.running ? 'disabled' : ''}>修改这张</button></div></section>`;
+  }
+
+  function setSampleMarkup(state) {
+    const sample = state.results[0];
+    if (state.generationMode !== 'set' || !sample || state.sampleConfirmed) return '';
+    const source = state.referenceImages[0] || state.productImages[0];
+    const busy = state.running || state.promptRunning ? 'disabled' : '';
+    return `<section class="experience-result sample-workspace">
+      <h2>共用背景</h2>
+      <div class="sample-grid">
+        <figure><figcaption>${state.referenceImages.length ? '参考原图' : '产品原图'}</figcaption><img src="${source.dataUrl}" alt="背景来源"><button type="button" class="action" id="sampleReplaceBackground" ${busy}>换背景</button><button type="button" class="action" data-pick-asset="reference" data-replace-background ${busy}>从场景资产选择</button></figure>
+        <figure><figcaption>第 1 张 · 样图</figcaption><img src="data:${sample.mimeType || 'image/jpeg'};base64,${sample.b64Json}" alt="第一张套图样图"></figure>
+        <div><b>待生成 · ${state.productImages.length - 1} 张</b><div class="sample-pending">${state.productImages.slice(1).map((image, i) => `<img src="${image.dataUrl}" alt="第 ${i + 2} 张产品原图">`).join('')}</div><small>逐张按产品原图展示</small></div>
+      </div>
+      <label class="experience-usage-brief">修改样图<textarea id="experienceFeedback" rows="2" placeholder="例如：台面改成浅灰色、减少道具，或换成短款裸粉美甲">${studio.utils.escapeHtml(state.feedback)}</textarea></label>
+      <div class="actions"><button type="button" class="action" id="sampleEditBackground" ${busy}>只改背景</button><button type="button" class="action" id="experienceRegenerate" ${busy}>修改样图</button><button type="button" class="action primary" id="sampleConfirm" ${busy}>确认样图并生成剩余 ${state.productImages.length - 1} 张</button></div>
+    </section>`;
   }
 
   function render(container) {
     const state = studio.state.experience;
     const hasProducts = state.productImages.length > 0;
     const hasReferences = state.referenceImages.length > 0;
-    const canBeSet = state.referenceImages.length >= 2;
-    const effectiveSet = canBeSet && (state.generationMode === 'set' || (state.generationMode === 'auto' && state.resolvedGenerationMode === 'set'));
-    const modeDecision = canBeSet ? `<fieldset class="experience-mode"><legend>生成方式</legend><label><input type="radio" name="generationMode" value="auto" ${state.generationMode === 'auto' ? 'checked' : ''}><b>自动判断</b></label><label><input type="radio" name="generationMode" value="single" ${state.generationMode === 'single' ? 'checked' : ''}><b>生成一张</b></label><label><input type="radio" name="generationMode" value="set" ${state.generationMode === 'set' ? 'checked' : ''}><b>按套图生成</b></label>${state.setDetection?.reason ? `<span class="experience-mode-result">${studio.utils.escapeHtml(state.setDetection.reason)}</span>` : ''}${effectiveSet ? `<label class="experience-output-count"><b>生成数量</b><select id="experienceOutputCount">${Array.from({ length: state.referenceImages.length }, (_, index) => `<option value="${index + 1}" ${state.outputCount === index + 1 ? 'selected' : ''}>${index + 1} 张</option>`).join('')}</select></label>` : ''}</fieldset>` : '';
-    const shotPlans = effectiveSet && Array.isArray(state.setDetection?.shots) ? state.setDetection.shots.slice(0, state.outputCount) : [];
-    const shotPlanMarkup = shotPlans.length ? `<section class="experience-shot-plan"><div><b>套图分镜</b><span>每张分别按对应参考图执行，只共享环境与固定道具。</span></div><div class="experience-shot-plan-grid">${shotPlans.map((shot, index) => `<article><b>${studio.utils.escapeHtml(shot.referenceId || `R${index + 1}`)} · ${studio.utils.escapeHtml(shot.role || (index ? `内页图${index}` : '首图'))}</b><span>${studio.utils.escapeHtml(shot.productPlan || '产品将按该参考图的槽位分配')}</span><small>${studio.utils.escapeHtml(shot.textSummary || '文字有无与位置将按该参考图执行')}</small></article>`).join('')}</div></section>` : '';
-    container.innerHTML = `<header class="page-head"><div class="eyebrow">CREATION WORKSPACE</div><h1>创作与生图</h1><p class="subtitle">产品长什么样看产品图；产品怎么展示可以选择看产品图或参考图。</p></header>${taskSwitcher()}
-      <section class="experience-panel streamlined"><div class="experience-note"><b>快速创作</b><span>上传图片，填写需要的创作要求，然后生成。</span></div>
+    const effectiveSet = state.generationMode === 'set';
+    const presentation = effectiveSet || !hasReferences ? 'product' : state.presentationSource;
+    const ready = (hasProducts && (!effectiveSet || state.productImages.length >= 2)) || hasReferences;
+    const backgroundReady = state.backgroundMode === 'default' || hasReferences;
+    const canSkipAnalysis = !effectiveSet && state.productImages.length === 1 && !hasReferences
+      && state.backgroundMode === 'default' && !state.analyzed;
+    const canGenerate = ready && backgroundReady;
+    const reviewingSample = effectiveSet && state.results.length > 0 && !state.sampleConfirmed && !state.editorialPages.length;
+    const draftAsset = state.pendingAsset;
+    const layout = studio.features.editorialLayout;
+    const pageDraft = () => state.editorialPages.length ? state.editorialPages : layout?.pages(state.decorativeCopy, state.referenceImages.length) || [];
+    const pageDriven = () => hasReferences && (!hasProducts || state.editorialPages.length > 0 ||
+      (effectiveSet && state.decorativeText && pageDraft().length > 1));
+    const modeHint = () => pageDriven()
+      ? ''
+      : effectiveSet && state.productImages.length >= 2 ? `${state.productImages.length} 张产品图 → ${state.productImages.length} 张成片` : '';
+    const promptPreview = () => pageDriven() ? [
+      state.analyzed ? layout?.posterPrompt : '',
+      state.analyzed && state.prompt ? '本次识图方案：\n' + state.prompt : '',
+      layout?.describePages(pageDraft()) || '',
+      state.analyzed ? pageDraft().map((page, index) => `第 ${index + 1} 页（${page.role}）\n本页文案：\n${page.copy}\n辅助英文：${JSON.stringify(page.english || {})}`).join('\n\n') : ''
+    ].filter(Boolean).join('\n\n') : '';
+    const submitLabel = !state.analyzed ? '分析图片' : state.editorialPages.length
+      ? `生成 ${state.editorialPages.length} 页`
+      : pageDriven() ? '整理分页面文案'
+      : effectiveSet ? (state.resumeSetFrom ? `继续生成剩余 ${state.productImages.length - state.resumeSetFrom} 张` : '生成首张样图') : '生成图片';
+    const modeDecision = `<fieldset class="experience-mode"><legend>生成方式</legend>${[['single', '单图'], ['set', '套图']].map(([value, label]) => `<label><input type="radio" name="generationMode" value="${value}" ${state.generationMode === value ? 'checked' : ''} ${state.running || state.promptRunning ? 'disabled' : ''}>${label}</label>`).join('')}<span id="experienceModeHint">${modeHint()}</span></fieldset>`;
+    container.innerHTML = `<header class="page-head"><h1>开始创作</h1></header>
+      <section class="experience-panel streamlined">${modeDecision}
       <div class="experience-upload-grid compact">${uploadCollection(state.productImages, 'product')}${uploadCollection(state.referenceImages, 'reference')}</div>
-      ${modeDecision}${shotPlanMarkup}
-      <fieldset class="presentation-source"><legend>产品怎么展示</legend><label class="presentation-option ${state.presentationSource === 'reference' ? 'active' : ''}"><input type="radio" name="presentationSource" value="reference" ${state.presentationSource === 'reference' ? 'checked' : ''}><b>按参考图里的方式展示</b><span>模仿手持/静置、朝向、承托、位置和拍摄角度</span></label><label class="presentation-option ${state.presentationSource === 'product' ? 'active' : ''}"><input type="radio" name="presentationSource" value="product" ${state.presentationSource === 'product' ? 'checked' : ''}><b>按产品图里的方式展示</b><span>保留原功能，以产品图的姿态为准</span></label></fieldset>
-      <div class="experience-brief-row"><label class="experience-usage-brief"><b>创作要求（可选 · 优先级最高）</b><textarea id="experienceCreationBrief" rows="4" placeholder="可同时说明画面要求与图片用途，例如：R1 参考摆放与构图，R2 只参考色调。">${studio.utils.escapeHtml(state.creationBrief)}</textarea></label><span class="experience-ratio-inline">3:4</span></div>
-      <details class="advanced-panel"><summary>高级设置 · Gemini 分析与提示词</summary><div class="advanced-panel-body"><div class="experience-actions"><button class="action" id="experienceBuildPrompt" ${state.promptRunning || !hasProducts ? 'disabled' : ''}>${state.promptRunning ? 'Gemini 正在优化…' : '使用 Gemini 优化提示词（可选）'}</button></div><label class="experience-prompt"><b>可编辑提示词（可选）</b><textarea id="experiencePrompt" rows="8" placeholder="通常无需填写；需要精确控制时再展开编辑。">${studio.utils.escapeHtml(state.prompt)}</textarea></label></div></details>
+      ${effectiveSet ? '' : `<fieldset class="presentation-source"><legend>产品展示</legend>${[['product', '按产品图展示'], ['reference', '按参考图展示']].map(([value, label]) => `<label class="presentation-option"><input type="radio" name="presentationSource" value="${value}" ${presentation === value ? 'checked' : ''} ${value === 'reference' && !hasReferences ? 'disabled' : ''}>${label}</label>`).join('')}</fieldset>`}
+      <div class="studio-background" id="experienceBackgroundControls" ${pageDriven() ? 'hidden' : ''}><label>背景<select id="experienceBackground"><option value="default">默认 · 70% 保留 / 30% 变化（${hasReferences ? '参考图 R1' : '产品图 P1'}）</option><option value="exact" ${state.backgroundMode === 'exact' ? 'selected' : ''}>完整还原背景</option><option value="style" ${state.backgroundMode === 'style' ? 'selected' : ''}>参考图风格</option></select></label>
+      ${!backgroundReady ? '<span>请添加参考／背景图</span>' : ''}
+      </div>
+      ${state.decorativeText || (!hasProducts && hasReferences) ? `<label class="experience-usage-brief">花字文案与要求<textarea id="experienceDecorativeText" rows="4" placeholder="首页：……&#10;内页 1：……&#10;结尾页：……" ${state.running ? 'disabled' : ''}>${studio.utils.escapeHtml(state.decorativeCopy)}</textarea></label>` : ''}
+      ${hasReferences && state.analyzed && (state.decorativeText || !hasProducts) ? '<button class="action" id="prepareCopyPages" type="button">整理分页面文案</button>' : ''}
+      ${state.editorialPages.length > 1 ? `<label>排版<select id="posterLayoutOverride"><option value="">按参考自动选择</option><option value="retro-editorial"${state.posterLayoutOverride === 'retro-editorial' ? ' selected' : ''}>复古杂志参考</option></select></label>` : ''}
+      ${state.editorialPages.map((page, index) => `<fieldset class="presentation-source"><legend>第 ${index + 1} 页</legend><label>页面<select data-page-role="${index}">${studio.features.editorialLayout.roles.map(role => `<option${role === page.role ? ' selected' : ''}>${role}</option>`).join('')}</select></label><label>参考<select data-page-ref="${index}">${state.referenceImages.map((_, ref) => `<option value="${ref}"${page.ref === ref ? ' selected' : ''}>参考图 ${ref + 1}</option>`).join('')}</select></label>${state.productImages.length ? `<div>产品露出（最多两款） ${state.productImages.map((_, product) => `<label><input type="checkbox" data-page-product="${index}" value="${product}"${page.products.includes(product) ? ' checked' : ''}>产品图 ${product + 1}</label>`).join('')}</div>` : ''}</fieldset>`).join('')}
+      <div class="experience-brief-row"><label class="experience-usage-brief"><b>创作要求（可选）</b><textarea id="experienceCreationBrief" rows="4" placeholder="补充画面要求">${studio.utils.escapeHtml(state.creationBrief)}</textarea></label><span class="experience-ratio-inline">3:4</span></div>
+      <details class="advanced-panel"><summary>提示词</summary><div class="advanced-panel-body"><div class="experience-actions"><button class="action" id="experienceBuildPrompt" ${state.running || state.promptRunning || (!hasProducts && !hasReferences) ? 'disabled' : ''}>${state.promptRunning ? '分析中…' : '分析图片'}</button></div><p id="experiencePagePrompt" ${pageDriven() ? '' : 'hidden'}>${studio.utils.escapeHtml(promptPreview())}</p><label class="experience-prompt"><b id="experiencePromptLabel">${pageDriven() ? '补充提示词（可选）' : '编辑提示词'}</b><textarea id="experiencePrompt" rows="4" ${state.running || state.promptRunning ? 'disabled' : ''}>${studio.utils.escapeHtml(pageDriven() ? state.manualCreativePrompt : state.prompt)}</textarea></label></div></details>
       <div class="experience-actions"><span id="experienceStatus">${studio.utils.escapeHtml(state.message)}</span>${state.running || state.promptRunning ? '<button class="action" id="cancelExperience" type="button">取消等待</button>' : ''}</div>
-      <div class="experience-submit"><span>${state.usage ? `今日已用：个人 ${state.usage.userDaily}/15 · 全站 ${state.usage.siteDaily}/30` : (hasReferences ? 'R1 默认决定构图与展示关系；手动图片使用说明优先。' : '未上传参考图时，以产品图与补充要求为准。')}</span><button class="action primary" id="experienceGenerate" ${state.running || state.promptRunning || !hasProducts ? 'disabled' : ''}>${state.running ? '正在生成…' : (effectiveSet ? (shotPlans.length >= state.outputCount ? (state.resumeSetFrom > 0 ? `继续生成剩余 ${state.outputCount - state.resumeSetFrom} 张` : `生成 ${state.outputCount} 张套图`) : '分析套图分镜') : '生成图片')}</button></div></section>
-      ${resultMarkup(state)}`;
+      <div class="experience-submit">${reviewingSample ? '' : `<button class="action primary" id="experienceGenerate" ${state.running || state.promptRunning || !canGenerate ? 'disabled' : ''}>${state.running ? '处理中…' : submitLabel}</button>`}</div></section>
+      ${reviewingSample && !state.editorialPages.length ? setSampleMarkup(state) : resultMarkup(state)}
+      ${state.qualityPreview ? `<section class="experience-result"><h2>待核验预览</h2><figure class="generated-card"><img src="data:image/jpeg;base64,${state.qualityPreview.b64Json}" alt="待核验预览"></figure></section>` : ''}`;
 
-    container.querySelectorAll('[data-source-mode]').forEach(button => {
-      button.onclick = () => {
-        const nextMode = button.dataset.sourceMode;
-        if (nextMode === 'experience') return;
-        studio.state.prompt.sourceMode = nextMode;
-        studio.features.promptWorkspace.invalidateResults();
-        studio.features.promptWorkspace.render(container);
-      };
-    });
+    if (canSkipAnalysis) {
+      const direct = document.createElement('button');
+      direct.type = 'button';
+      direct.className = 'action';
+      direct.textContent = '直接生成';
+      direct.disabled = state.running || state.promptRunning;
+      direct.onclick = () => generate('', { skipAnalysis: true });
+      container.querySelector('.experience-submit').append(direct);
+    }
 
     if (state.waitTimer) clearInterval(state.waitTimer);
     if (state.running || state.promptRunning) {
-      const timeoutSeconds = state.promptRunning ? 180 : 230;
       const updateWait = () => {
         const status = container.querySelector('#experienceStatus');
         if (!status) return;
         const seconds = Math.max(0, Math.floor((Date.now() - state.waitStartedAt) / 1000));
-        status.textContent = `${state.message} 本张已等待 ${seconds} 秒（最长约${timeoutSeconds}秒）。`;
+        status.textContent = `${state.message} 已等待 ${seconds} 秒。`;
       };
       updateWait();
       state.waitTimer = setInterval(updateWait, 1000);
@@ -14079,87 +15306,209 @@
     }
 
     function resetDerivedState() {
+      state.analyzed = false;
+      state.assetClassification = null;
+      state.sampleConfirmed = false;
+      state.sampleEdits = [];
+      state.manicureCorrections = {};
+      state.propAttempts = {};
+      state.qualityPreview = null;
+      state.manualCreativePrompt = '';
+      state.backgroundPlan = '';
+      state.decorativeText = false;
+      state.editorialPages = [];
+      state.posterLayoutOverride = initialPosterLayout();
+      state.editorialTags = [];
+      state.editorialReferenceRoles = [];
+      state.editorialReferenceStyles = [];
+      state.editorialEnglish = [];
+      state.decorativeCopy = '';
       state.prompt = '';
       state.feedback = '';
       state.result = null;
       state.results = [];
       state.selectedResultIndex = 0;
       state.resumeSetFrom = 0;
-      state.resolvedGenerationMode = '';
-      state.setDetection = null;
-      state.outputCount = Math.max(1, Math.min(state.outputCount, state.referenceImages.length || 1));
+      state.productAnalysis = null;
+      state.selectedSceneRecommendation = '';
       state.variationIndex = 0;
       state.currentVariation = '';
       state.historySync = '';
       state.historySyncMessage = '';
       state.lastHistoryRecord = null;
+      state.pendingPosterHistory = [];
     }
 
+    let replacingBackground = false;
     async function bindUpload(id, key, label, limit) {
       const input = container.querySelector(`#${id}`);
       const handleFiles = async incoming => {
         const files = Array.from(incoming || []).filter(Boolean);
+        const replace = key === 'referenceImages' && replacingBackground;
+        replacingBackground = false;
         if (!files.length) return;
         try {
-          if (state[key].length + files.length > limit) throw new Error(`${label}最多上传 ${limit} 张`);
-          if (state.productImages.length + state.referenceImages.length + files.length > 8) throw new Error('产品图与参考图合计最多上传 8 张');
+          const net = files.length - (replace && state.referenceImages.length ? 1 : 0);
+          if (replace && files.length !== 1) throw new Error('请选择一张背景图');
+          if (state[key].length + net > limit) throw new Error(`${label}最多上传 ${limit} 张`);
+          if (state.productImages.length + state.referenceImages.length + net > 8) throw new Error('产品图与参考图合计最多上传 8 张');
           const added = [];
           for (const file of files) {
-            const optimized = studio.services.experienceGeneration.needsOptimization(file);
             added.push({
-              dataUrl: await studio.services.experienceGeneration.fileDataUrl(file, label),
-              uploadMessage: optimized
-                ? `已优化传输副本（原图 ${(file.size / 1024 / 1024).toFixed(1)}MB）`
-                : '原图已载入'
+              dataUrl: await studio.services.experienceGeneration.fileDataUrl(file, label)
             });
           }
-          state[key].push(...added);
-          if (key === 'referenceImages') state.outputCount = state.referenceImages.length;
+          if (replace) state[key].splice(0, 1, ...added);
+          else state[key].push(...added);
           resetDerivedState();
-          state.message = `已添加 ${added.length} 张${label}；图片仅保存在当前页面内存中。`;
+          state.message = '';
+          if (key === 'productImages' && state.liveMode) {
+            studio.services.experienceGeneration.archiveUploads(added).catch(error => {
+              console.warn('产品资产后台归档未完成', error);
+            });
+          }
         } catch (error) {
           state.message = error.message;
         }
         render(container);
       };
       input.onchange = () => handleFiles(input.files);
-      studio.utils.bindFileDropZone(input.closest('.experience-upload'), file => handleFiles([file]));
+      input.addEventListener('cancel', () => { replacingBackground = false; });
+      const zone = input.closest('.experience-upload');
+      zone.ondragover = event => { event.preventDefault(); zone.classList.add('dragging'); };
+      zone.ondragleave = event => { if (!zone.contains(event.relatedTarget)) zone.classList.remove('dragging'); };
+      zone.ondrop = event => {
+        event.preventDefault();
+        zone.classList.remove('dragging');
+        if (!state.running && !state.promptRunning) handleFiles(event.dataTransfer.files);
+      };
+      input.disabled = state.running || state.promptRunning;
     }
     bindUpload('experienceProductAdd', 'productImages', '产品图', 6);
     bindUpload('experienceReferenceAdd', 'referenceImages', '参考图', 4);
+    const replaceBackground = container.querySelector('#sampleReplaceBackground');
+    if (replaceBackground) replaceBackground.onclick = () => {
+      replacingBackground = true;
+      container.querySelector('#experienceReferenceAdd').click();
+    };
+    if (draftAsset) {
+      state.pendingAsset = null;
+      const key = draftAsset.kind === 'product' ? 'productImages' : 'referenceImages';
+      const limit = draftAsset.kind === 'product' ? 6 : 4;
+      if (key === 'referenceImages' && draftAsset.replaceBackground && (state[key].length || state.productImages.length < 8)) {
+        state[key] = [{ dataUrl: draftAsset.dataUrl }, ...state[key].slice(1).filter(image => image.dataUrl !== draftAsset.dataUrl)];
+        resetDerivedState();
+        state.message = '';
+      } else if (state[key].some(image => image.dataUrl === draftAsset.dataUrl)) {
+        state.message = '这张图已添加。';
+      } else if (state[key].length >= limit || state.productImages.length + state.referenceImages.length >= 8) {
+        state.message = '已达到图片数量上限。';
+      } else {
+        const decorativeCopy = state.decorativeCopy;
+        state[key].push({ dataUrl: draftAsset.dataUrl, uploadMessage: '已从资产库添加' });
+        resetDerivedState();
+        state.decorativeCopy = decorativeCopy;
+        state.message = '';
+      }
+      render(container);
+      return;
+    }
 
     container.querySelectorAll('[data-remove-kind]').forEach(button => button.onclick = () => {
+      if (state.running || state.promptRunning) return;
       const key = button.dataset.removeKind === 'product' ? 'productImages' : 'referenceImages';
       state[key].splice(Number(button.dataset.removeIndex), 1);
       resetDerivedState();
-      state.message = '已移除图片，后续编号已自动更新。';
+      state.message = '';
       render(container);
     });
 
     container.querySelectorAll('input[name="presentationSource"]').forEach(input => input.onchange = event => {
       state.presentationSource = event.target.value;
       resetDerivedState();
-      state.message = state.presentationSource === 'reference'
-        ? '将按参考图中的手持/静置、朝向、承托、位置和镜头展示产品。'
-        : '将保留产品图中的展示姿态；参考图只控制环境。';
+      state.message = '';
       render(container);
     });
 
     container.querySelectorAll('input[name="generationMode"]').forEach(input => input.onchange = event => {
       state.generationMode = event.target.value;
-      state.resolvedGenerationMode = state.generationMode === 'auto' ? (state.setDetection?.recommendedMode || '') : state.generationMode;
-      state.outputCount = Math.max(1, Math.min(state.outputCount, state.referenceImages.length));
-      state.results = [];
-      state.result = null;
-      state.feedback = '';
-      state.resumeSetFrom = 0;
-      state.message = state.generationMode === 'auto' ? '生成前会先判断参考图是否属于同一套图。' : (state.generationMode === 'set' ? '将按套图逻辑逐张生成。' : '将把多张图作为参考，只生成一张。');
+      resetDerivedState();
+      state.message = '';
       render(container);
     });
-    const outputCount = container.querySelector('#experienceOutputCount');
-    if (outputCount) outputCount.onchange = event => {
-      state.outputCount = Number(event.target.value) || 1;
+    const background = container.querySelector('#experienceBackground');
+    background.disabled = state.running || state.promptRunning;
+    background.onchange = event => {
+      state.backgroundMode = event.target.value;
+      resetDerivedState();
+      state.message = '';
+      render(container);
     };
+    const copy = container.querySelector('#experienceDecorativeText');
+    function refreshCopySummary() {
+      container.querySelector('#experienceBackgroundControls').hidden = pageDriven();
+      const hint = container.querySelector('#experienceModeHint');
+      if (hint) hint.textContent = modeHint();
+      const preview = container.querySelector('#experiencePagePrompt');
+      if (preview) { preview.hidden = !pageDriven(); preview.textContent = promptPreview(); }
+      const promptField = container.querySelector('#experiencePrompt');
+      const promptLabel = container.querySelector('#experiencePromptLabel');
+      if (promptLabel) promptLabel.textContent = pageDriven() ? '补充提示词（可选）' : '编辑提示词';
+      if (promptField) promptField.value = pageDriven() ? state.manualCreativePrompt : state.prompt;
+      const submit = container.querySelector('#experienceGenerate');
+      if (submit && state.analyzed && !state.running) submit.textContent = pageDriven() ? '整理分页面文案' : effectiveSet ? '生成首张样图' : '生成图片';
+    }
+    if (copy) copy.oninput = event => {
+      state.decorativeCopy = event.target.value;
+      state.editorialPages = [];
+      state.editorialEnglish = [];
+      state.analyzed = false;
+      container.querySelectorAll('[data-page-role]').forEach(select => { select.closest('fieldset').hidden = true; });
+      refreshCopySummary();
+    };
+    function arrangePages() {
+      const normalize = value => String(value || '').normalize('NFKC').toLowerCase();
+      state.editorialPages = (studio.features.editorialLayout?.pages(state.decorativeCopy, state.referenceImages.length) || []).map((page, index) => {
+        const text = normalize(page.copy);
+        const tags = state.editorialTags.filter(tag => state.productImages[tag.index - 1]);
+        const found = term => {
+          const name = normalize(term).trim();
+          if (name.length < 2) return false;
+          return /^[a-z0-9 -]+$/.test(name) ? text.split(/[^a-z0-9 -]+/).some(segment => (' ' + segment.trim() + ' ').includes(' ' + name + ' ')) : text.includes(name);
+        };
+        const explicit = tags.filter(tag => [tag.productName, ...(tag.aliases || [])].some(found));
+        const matches = (explicit.length ? explicit : tags.filter(tag => found(tag.brand))).map(tag => tag.index - 1);
+        const recognized = state.editorialReferenceRoles;
+        const ref = recognized.indexOf(page.role);
+        const fallback = page.role === '结尾页' ? recognized.indexOf('内页') : -1;
+        return { ...page, ref: ref >= 0 ? ref : fallback >= 0 ? fallback : page.ref, english: state.editorialEnglish[index] || {}, matches, products: matches.slice(0, 2) };
+      });
+      state.resumeSetFrom = 0;
+      state.results = [];
+      state.result = null;
+    }
+    const posterLayoutOverride = container.querySelector('#posterLayoutOverride');
+    if (posterLayoutOverride) posterLayoutOverride.onchange = () => { state.posterLayoutOverride = posterLayoutOverride.value; };
+    const prepare = container.querySelector('#prepareCopyPages');
+    if (prepare) prepare.onclick = () => {
+      if (!state.decorativeCopy.trim()) { copy?.focus(); return; }
+      arrangePages();
+      render(container);
+    };
+    container.querySelectorAll('[data-page-role]').forEach(select => select.onchange = () => {
+      state.editorialPages[Number(select.dataset.pageRole)].role = select.value;
+      const preview = container.querySelector('#experiencePagePrompt');
+      if (preview) preview.textContent = promptPreview();
+    });
+    container.querySelectorAll('[data-page-ref]').forEach(select => select.onchange = () => {
+      state.editorialPages[Number(select.dataset.pageRef)].ref = Number(select.value);
+    });
+    container.querySelectorAll('[data-page-product]').forEach(check => check.onchange = () => {
+      const page = state.editorialPages[Number(check.dataset.pageProduct)];
+      const product = Number(check.value);
+      if (check.checked && page.products.length >= 2) { check.checked = false; return; }
+      page.products = check.checked ? [...page.products, product] : page.products.filter(value => value !== product);
+    });
 
     container.querySelector('#experienceCreationBrief').oninput = event => {
       state.creationBrief = decodeNumericEntities(event.target.value);
@@ -14167,16 +15516,11 @@
       state.prompt = '';
       state.setDetection = null;
       state.resolvedGenerationMode = '';
-      state.resumeSetFrom = 0;
+      if (!effectiveSet) state.resumeSetFrom = 0;
     };
     container.querySelector('#experiencePrompt').oninput = event => {
       state.prompt = event.target.value;
-      state.result = null;
-      state.results = [];
-      state.resumeSetFrom = 0;
-      const generateButton = container.querySelector('#experienceGenerate');
-      if (generateButton) generateButton.disabled = state.running || !state.productImages.length;
-      container.querySelector('.experience-result')?.remove();
+      state.manualCreativePrompt = event.target.value;
     };
 
     function promptWithBrief(prompt) {
@@ -14204,37 +15548,76 @@
       return Promise.all(images.map((image, index) => studio.services.experienceGeneration.promptImageDataUrl(image.dataUrl, `${label}${index + 1}`)));
     }
 
-    function applySetDetection(payload) {
-      if (state.referenceImages.length < 2) return;
-      const analysis = payload.referenceSet || {};
-      const classification = ['consistent', 'inconsistent', 'uncertain'].includes(analysis.classification) ? analysis.classification : 'uncertain';
-      const recommendedMode = classification === 'consistent' ? 'set' : (classification === 'inconsistent' ? 'single' : '');
-      const shots = (Array.isArray(analysis.shots) ? analysis.shots : []).slice(0, state.referenceImages.length).map((shot, index) => ({
-        ...shot,
-        referenceId: shot.referenceId || `R${index + 1}`,
-        role: shot.role || (index === 0 ? '首图' : `内页图${index}`),
-        textSummary: shot.textPolicy === 'none' ? '无标题、无正文' : (shot.textPolicy === 'labels_only' ? '小标注使用目标产品内容' : (shot.textPolicy === 'user_copy' ? `使用本张文案：${shot.copyAssignment || '待分配'}` : `按本张版式生成目标产品文案${shot.copyAssignment ? `：${shot.copyAssignment}` : ''}`))
-      }));
-      state.setDetection = { ...analysis, shots, classification, recommendedMode, reason: analysis.reason || (classification === 'uncertain' ? '无法确定参考图是否属于同一套，请手动选择生成方式。' : '') };
-      state.resolvedGenerationMode = recommendedMode;
-      if (recommendedMode === 'set') state.outputCount = Math.max(1, Math.min(state.outputCount || state.referenceImages.length, state.referenceImages.length));
-    }
+    const presentationSource = () => state.generationMode === 'set' || !state.referenceImages.length ? 'product' : state.presentationSource;
+    const backgroundRules = () => ({
+      default: state.referenceImages.length
+        ? '用 R1 环境替换 P 原背景，保留约70%的场景类型、主体之外的布局、主要材质和自然光向；为约30%变化明确指定至少两处可见的环境调整，例如同类地面颗粒粗细与灰阶、背景局部磨损分布或非产品道具摆放。必须实际执行，禁止原样复制 R1；换产品、去除参考品和修改美甲都不计入背景变化。'
+        : '以 P1 的原环境为基准保留约70%，仅微调背景材质、杂物或色调，沿用原机位、景别和自然光向。禁止凭空搭建环境或添加刻意光影。',
+      exact: '完整还原上传参考图的背景环境，不应用70/30背景变化。',
+      style: '从参考图提取材质、色调和自然光。套图共用同一个经用户确认的背景。'
+    })[state.backgroundMode] + (state.referenceImages.length && state.backgroundMode !== 'exact'
+      ? (state.generationMode === 'set'
+        ? ' 如画面已有穿搭，首张建立统一的服装、鞋饰和美甲方案；后续逐张沿用首张的具体款式、颜色、材质和甲型花色，以及相同背景。'
+        : ' 如参考图可见穿搭，在原画幅内明显改变服装、袖口、裤装或鞋饰的款式、颜色或材质，不能复制原穿搭。保留产品和选定手持关系，美甲按用户要求单独修改。')
+      : (state.generationMode === 'set' ? ' 全套沿用首张的服饰、鞋饰、美甲和背景。' : ''));
 
     async function buildPrompt(signal, accessHeaders) {
+      const isSet = state.generationMode === 'set';
+      const editorialPlanning = hasReferences && (!hasProducts || (isSet && Boolean(state.decorativeCopy.trim())) || state.editorialPages.length > 0);
+      const backgroundBrief = editorialPlanning ? '' : backgroundRules();
       const payload = await studio.services.experienceGeneration.buildPrompt({
         productDataUrls: await promptImages(state.productImages, '产品图P'),
         referenceDataUrls: await promptImages(state.referenceImages, '参考图R'),
-        presentationSource: state.presentationSource,
-        imageUsageBrief: state.creationBrief.trim(),
-        backgroundBrief: '',
-        analyzeReferenceSet: state.referenceImages.length >= 2
-      }, { signal, accessHeaders });
-      state.prompt = promptWithBrief(payload.prompt);
-      applySetDetection(payload);
+        presentationSource: presentationSource(),
+        imageUsageBrief: [
+          editorialPlanning ? studio.features.editorialLayout.posterPrompt : '',
+          state.decorativeCopy.trim() ? '海报辅助英文默认采用简短标注，不逐句翻译：模块副标题2至4个短词且不超过24字符；插画标注不超过20字符；右上四行每行一个短词，不超过10字符；页脚两组短语总计不超过38字符。保留用户原文中明确给出的英文。' : '',
+          state.creationBrief.trim()
+        ].filter(Boolean).join('\n'),
+        editorialCopy: state.decorativeCopy.trim(),
+        editorialPlanning,
+        backgroundBrief: editorialPlanning ? '' : [
+          backgroundBrief,
+          isSet
+            ? '本次为套图，背景方案待用户确认。'
+            : '本次为单图。prompt 中写明背景来源和具体变化，禁止写“共用背景”或假定用户已确认。'
+        ].join('\n'),
+        analyzeDecorativeText: state.referenceImages.length > 0,
+        classifyProductAssets: state.productImages.length > 0 && (state.liveMode || state.referenceImages.length > 0)
+      }, { signal, accessHeaders, interactive: true });
+      const generatedPrompt = isSet ? payload.prompt : String(payload.prompt || '')
+        .replace(/(?:采用|沿用|使用|执行|遵循)\s*(?:已确认的)?\s*(?:套图)?共用背景(?:方案)?[，,；;。]?\s*/g, '');
+      const proposedBackground = payload.composition?.backgroundPlan?.trim();
+      state.backgroundPlan = proposedBackground && (isSet || !/共用背景|已确认/.test(proposedBackground))
+        ? proposedBackground : backgroundBrief;
+      state.prompt = promptWithBrief(isSet ? generatedPrompt : [
+        generatedPrompt,
+        `背景执行要求：${backgroundBrief}`,
+        state.backgroundPlan === backgroundBrief ? '' : `具体背景方案：${state.backgroundPlan}`
+      ].filter(Boolean).join('\n\n'));
+      state.productAnalysis = payload.productAnalysis || null;
+      state.decorativeText = state.referenceImages.length > 0 && payload.decorativeText === true;
+      state.editorialTags = payload.productAssetTags || [];
+      state.editorialReferenceRoles = payload.editorialReferenceRoles || [];
+      state.editorialReferenceStyles = payload.editorialReferenceStyles || [];
+      state.editorialEnglish = payload.editorialEnglish || [];
+      state.analyzed = true;
+      state.assetClassification = payload;
+      if (state.liveMode) syncProductClassification();
       return payload;
     }
 
+    function syncProductClassification() {
+      if (!state.assetClassification || state.assetSync) return;
+      const classification = state.assetClassification;
+      state.assetSync = studio.services.experienceGeneration.syncAssetTags([...state.productImages], classification)
+        .then(() => { if (state.assetClassification === classification) state.assetClassification = null; })
+        .catch(error => { console.warn('产品资产后台分类未完成', error); })
+        .finally(() => { state.assetSync = null; });
+    }
+
     container.querySelector('#experienceBuildPrompt').onclick = async () => {
+      if (state.running || state.promptRunning) return;
       let accessHeaders;
       try {
         accessHeaders = await studio.services.experienceGeneration.authorizationHeaders();
@@ -14246,13 +15629,11 @@
       state.promptRunning = true;
       state.abortController = new AbortController();
       state.waitStartedAt = Date.now();
-      state.result = null;
-      state.results = [];
-      state.message = '正在分析上传图片并生成提示词…';
+      state.message = '正在分析图片…';
       render(container);
       try {
-        const payload = await buildPrompt(state.abortController.signal, accessHeaders);
-        state.message = payload.mock ? '本地模拟提示词已生成；未调用 Gemini。' : (state.setDetection?.reason || 'Gemini 提示词已生成，可以编辑后再生图。');
+        await buildPrompt(state.abortController.signal, accessHeaders);
+        state.message = '';
       } catch (error) {
         state.message = error.message;
       } finally {
@@ -14262,133 +15643,232 @@
       }
     };
 
-    async function generate(feedback, { reviseCurrent = false } = {}) {
-      let accessHeaders;
-      try {
-        accessHeaders = await studio.services.experienceGeneration.authorizationHeaders();
-      } catch (error) {
-        state.message = error.message;
+    async function generate(feedback, { reviseCurrent = false, skipAnalysis = false, confirmSample = false } = {}) {
+      if (state.running || state.promptRunning || (skipAnalysis && !canSkipAnalysis)) return;
+      if (confirmSample && (!reviewingSample || state.feedback.trim())) {
+        state.message = '请先应用或清空样图修改要求。';
         render(container);
         return;
       }
       state.running = true;
+      state.qualityPreview = null;
+      let accessHeaders;
+      try {
+        accessHeaders = await studio.services.experienceGeneration.authorizationHeaders();
+      } catch (error) {
+        state.running = false;
+        state.message = error.message;
+        render(container);
+        return;
+      }
       state.abortController = new AbortController();
       state.waitStartedAt = Date.now();
-      state.message = reviseCurrent ? '正在按改进意见修改当前图片；未提及部分尽量保持不变…' : '正在基于参考图的构图与展示关系生成新版本…';
+      state.message = reviseCurrent ? '正在修改图片…' : '正在生成图片…';
       render(container);
+      let attemptedShot = 0;
+      let historyFailed = false;
       try {
-        let setPlanPreparedNow = false;
-        if (!reviseCurrent && state.referenceImages.length >= 2 && state.generationMode === 'auto' && !state.setDetection) {
-          state.message = '正在判断参考图是否属于同一套图…';
-          const status = container.querySelector('#experienceStatus');
-          if (status) status.textContent = state.message;
+        if (!reviseCurrent && !skipAnalysis && !state.analyzed) {
+          state.message = '正在分析图片…';
           await buildPrompt(state.abortController.signal, accessHeaders);
-          setPlanPreparedNow = state.resolvedGenerationMode === 'set';
-        }
-        const resolvedMode = state.referenceImages.length < 2
-          ? 'single'
-          : (state.generationMode === 'auto' ? state.resolvedGenerationMode : state.generationMode);
-        if (!resolvedMode) {
-          state.message = state.setDetection?.reason || '无法自动确定是否为套图，请手动选择“生成一张”或“按套图生成”。';
+          state.message = '';
           return;
         }
-        if (resolvedMode === 'set' && state.productImages.length !== 1 && state.productImages.length !== state.referenceImages.length && !state.creationBrief.trim()) {
-          state.message = '产品图与参考图数量不对应，请在“创作要求”中说明 P/R 分配方式。';
-          return;
-        }
-        if (!reviseCurrent && resolvedMode === 'set' && (state.setDetection?.shots?.length || 0) < Math.max(1, state.outputCount)) {
-          state.message = '正在逐张分析首图/内页的产品、摆放和文字版式…';
-          const status = container.querySelector('#experienceStatus');
-          if (status) status.textContent = state.message;
-          await buildPrompt(state.abortController.signal, accessHeaders);
-          if ((state.setDetection?.shots?.length || 0) < Math.max(1, state.outputCount)) {
-            state.message = '未能完成逐张分镜分析，已停止生图，避免把内页文案错放到首图。请重试 Gemini 分析。';
+        const setEnabled = state.generationMode === 'set';
+        if (state.decorativeCopy.trim() && pageDriven()) {
+          if (!state.editorialPages.length) {
+            arrangePages();
+            state.message = '请确认页面与参考后生成。';
             return;
           }
-          setPlanPreparedNow = true;
-        }
-        if (!reviseCurrent && resolvedMode === 'set' && setPlanPreparedNow) {
-          state.message = '套图分镜已完成。请先确认每张的产品与文案归属；如需纠正，修改“创作要求”后重新分析。确认后再点击生成。';
+          if (state.editorialPages.length > 20 || state.editorialPages.some(page => !page.copy)) throw new Error('请填写每页文案，一次最多 20 页。');
+          const pages = state.editorialPages;
+          const layout = studio.features.editorialLayout;
+          const wholeSet = !reviseCurrent && pages.length > 1;
+          const controlledLayout = wholeSet && (state.posterLayoutOverride === 'retro-editorial'
+            || pages.every(page => layout.recognizedStyle(state.editorialReferenceStyles[page.ref]) === 'retro-editorial'));
+          for (const page of pages) {
+            page.style = controlledLayout ? 'retro-editorial' : layout.recognizedStyle(state.editorialReferenceStyles[page.ref]);
+            page.renderMode = controlledLayout ? 'poster-art-v2' : 'full-page-v2';
+          }
+          // Image generation needs the original reference, not the lossy Gemini
+          // analysis thumbnail: tiny English labels and type are design evidence.
+          const referenceImages = state.referenceImages.map(image => image.dataUrl);
+          const selected = reviseCurrent ? state.selectedResultIndex : 0;
+          const options = { references: referenceImages, products: state.productImages.map(image => image.dataUrl),
+            brief: state.creationBrief, manual: state.manualCreativePrompt, results: state.results, feedback: reviseCurrent ? feedback : '' };
+          const requirements = [options.brief, options.manual].filter(Boolean).join('\n');
+          const contract = controlledLayout ? await layout.fitSeries(pages, requirements) : null;
+          const request = wholeSet ? layout.setRequest(pages, { ...options, controlledLayout }) : layout.pageRequest(pages, selected, options);
+          const payload = await studio.services.experienceGeneration.generate(request, { signal: state.abortController.signal, accessHeaders });
+          const expectedCount = wholeSet ? pages.length : 1;
+          if (controlledLayout && !payload.mock && !payload.posterArtwork) throw new Error('测试服务未返回海报插画素材，现有结果已保留。');
+          const crops = wholeSet && !payload.mock && payload.images?.[0]
+            ? await layout.splitSet(payload.images[0], payload.posterGrid, expectedCount) : payload.images;
+          const images = controlledLayout && crops?.length === expectedCount
+            ? await Promise.all(pages.map((page, index) => layout.compose({ ...crops[index], posterArtwork: true }, page, requirements, payload.mock, false, contract)))
+            : crops;
+          if (images?.length !== expectedCount || images.some(image => !image?.b64Json)) {
+            throw new Error('未收到完整海报。原结果与草稿已保留。');
+          }
+          if (reviseCurrent) state.results[selected] = images[0];
+          else state.results = images;
+          state.result = state.results[selected];
+          state.selectedResultIndex = selected;
+          state.resumeSetFrom = 0;
+          state.feedback = '';
+          state.usage = payload.usage || state.usage;
+          if (!payload.mock) {
+            for (const [offset, image] of images.entries()) {
+              const index = wholeSet ? offset : selected;
+              const record = historyRecord(payload, image, request.prompt + '\n本页原文：\n' + pages[index].copy, feedback, state, index);
+              state.lastHistoryRecord = record;
+              try { await studio.services.reviewHistory.save(record); } catch { state.pendingPosterHistory.push(record); }
+            }
+          }
+          historyFailed = state.pendingPosterHistory.length > 0;
+          state.historySync = historyFailed ? 'pending' : payload.mock ? 'mock' : 'synced';
+          state.historySyncMessage = historyFailed ? '部分历史同步失败' : '';
+          state.message = historyFailed ? '海报已生成；部分历史暂未同步。' : '';
           return;
         }
-        if (!state.prompt.trim()) state.prompt = directEditPrompt();
-        const setEnabled = resolvedMode === 'set' || (reviseCurrent && state.results.length > 1);
-        const shotCount = setEnabled ? Math.max(1, Math.min(state.outputCount, state.referenceImages.length)) : 1;
-        const resumeFrom = !reviseCurrent && setEnabled && state.resumeSetFrom > 0 && state.resumeSetFrom < shotCount
-          ? state.resumeSetFrom
-          : 0;
+        if (!state.productImages.length) throw new Error('请填写花字文案。');
+        if (setEnabled && state.productImages.length < 2) throw new Error('请添加产品图，或通过花字文案安排页面。');
+        const editingSample = reviseCurrent && reviewingSample;
+        if (state.backgroundMode !== 'default' && !state.referenceImages.length) return;
+        if (!state.prompt.trim()) state.prompt = skipAnalysis
+          ? promptWithBrief('保留原产品、数量、比例、角度、构图及原有静置或手持关系。手部纹理与肤色自然，只修改用户指定的细节；美甲修改仅作用于原图已出镜的手。')
+          : directEditPrompt();
+        const backgroundBrief = backgroundRules();
+        const confirmedPrompt = [state.prompt, state.prompt.includes(backgroundBrief) ? '' : backgroundBrief, state.selectedSceneRecommendation ? `局部背景调整：${state.selectedSceneRecommendation}` : ''].filter(Boolean).join('\n\n');
+        const shotCount = setEnabled ? state.productImages.length : 1;
+        if (confirmSample) {
+          state.sampleConfirmed = true;
+          state.resumeSetFrom = 1;
+        }
+        const resumeFrom = !reviseCurrent && setEnabled && state.sampleConfirmed ? state.resumeSetFrom : 0;
         const versionIndex = state.variationIndex;
-        const currentVariationDirective = reviseCurrent ? '' : variationDirective(state.creationBrief, versionIndex);
+        const currentVariationDirective = reviseCurrent || resumeFrom ? '' : variationDirective(state.creationBrief, versionIndex);
         if (!reviseCurrent && !resumeFrom) {
           state.currentVariation = `参考方案版本 ${versionIndex + 1}`;
           state.variationIndex += 1;
         }
-        const selectedIndex = Math.min(state.selectedResultIndex, Math.max(0, state.results.length - 1));
+        const selectedIndex = editingSample ? 0 : Math.min(state.selectedResultIndex, Math.max(0, state.results.length - 1));
         const indexes = reviseCurrent
           ? [selectedIndex]
-          : Array.from({ length: shotCount - resumeFrom }, (_, index) => index + resumeFrom);
+          : (resumeFrom ? Array.from({ length: shotCount - resumeFrom }, (_, index) => index + resumeFrom) : [0]);
+        if (setEnabled && !reviseCurrent && !resumeFrom) state.sampleConfirmed = false;
         const generated = reviseCurrent || resumeFrom ? [...state.results] : [];
-        let historyFailed = false;
+        const setAppearanceSourceDataUrls = setEnabled ? await promptImages(state.productImages, '产品图P').catch(() => []) : [];
         let lastPayload = null;
         for (let position = 0; position < indexes.length; position += 1) {
           const shotIndex = indexes[position];
+          attemptedShot = shotIndex;
           const currentResult = reviseCurrent ? generated[shotIndex] : null;
           const previousImageDataUrl = currentResult ? `data:${currentResult.mimeType || 'image/jpeg'};base64,${currentResult.b64Json}` : '';
           const anchorResult = setEnabled
             ? (shotIndex === 0 ? generated[1] : generated[0])
             : null;
           const setAnchorImageDataUrl = anchorResult ? `data:${anchorResult.mimeType || 'image/jpeg'};base64,${anchorResult.b64Json}` : '';
+          const otherNails = setEnabled && anchorResult?.visibleNails === false
+            ? generated.find((result, index) => index !== shotIndex && result?.visibleNails === true) : null;
+          const setManicureAnchorImageDataUrl = otherNails ? `data:${otherNails.mimeType || 'image/jpeg'};base64,${otherNails.b64Json}` : '';
           state.message = reviseCurrent
-            ? `正在修改套图 ${shotIndex + 1}，并锁定其他图的风格与道具…`
+            ? '正在修改图片…'
             : (setEnabled ? `正在生成套图 ${shotIndex + 1}/${shotCount}…` : '正在生成图片…');
           state.waitStartedAt = Date.now();
           const status = container.querySelector('#experienceStatus');
           if (status) status.textContent = state.message;
-          const payload = await studio.services.experienceGeneration.generate({
-            productDataUrls: state.productImages.map(image => image.dataUrl),
+          const request = {
+            productDataUrls: (setEnabled ? [state.productImages[shotIndex]] : state.productImages).map(image => image.dataUrl),
             referenceDataUrls: state.referenceImages.map(image => image.dataUrl),
             previousImageDataUrl,
             setAnchorImageDataUrl,
-            prompt: state.prompt,
+            sampleShowsNails: anchorResult?.visibleNails,
+            setManicureAnchorImageDataUrl,
+            prompt: setEnabled ? (editingSample
+              ? '只执行本轮修改要求，保留样图中未指定的细节，产品角度、数量、包装与展示方式不变。'
+              : (setAnchorImageDataUrl
+                ? ['本张服饰、袖口、鞋饰、美甲和背景以套图锚点为准，原产品图只确定本张产品和展示姿态。',
+                  '以下提示词与创作要求默认逐张生效，仅排除明确指定其他张、首图专属或与本张无关的要求。若样图修改与原要求冲突，以最新修改为准。',
+                  state.prompt, ...state.sampleEdits].filter(Boolean).join('\n\n')
+                : [backgroundRules(), state.backgroundPlan, state.prompt, state.creationBrief.trim()].filter(Boolean).join('\n\n'))) : confirmedPrompt,
             feedback,
-            presentationSource: state.presentationSource,
-            imageUsageBrief: state.creationBrief.trim(),
+            presentationSource: presentationSource(),
+            imageUsageBrief: editingSample ? '' : state.creationBrief.trim(),
             variationDirective: currentVariationDirective,
             isRevision: reviseCurrent,
-            setMode: setEnabled,
+            productLedSet: setEnabled,
+            editingSetSample: editingSample,
+            manicureCorrection: state.manicureCorrections[shotIndex] || '',
+            qualityPolicy: true,
+            setAppearanceSourceDataUrls,
+            propAttempt: state.propAttempts[shotIndex] || 0,
+            manualCreativePrompt: state.manualCreativePrompt,
+            sampleEditBrief: setEnabled ? state.sampleEdits.join('\n') : '',
+            backgroundMode: state.backgroundMode,
+            decorativeCopy: state.decorativeText ? state.decorativeCopy : '',
             setShotIndex: shotIndex,
             setShotCount: shotCount,
-            setStyleContract: state.setDetection?.styleContract || '',
-            setShotPlan: state.setDetection?.shots?.[shotIndex] || null,
+            setStyleContract: setEnabled && !editingSample && !setAnchorImageDataUrl ? state.backgroundPlan : '',
             ratio: '3:4'
-          }, { signal: state.abortController.signal, accessHeaders });
+          };
+          const imageBytes = [request.previousImageDataUrl, request.setAnchorImageDataUrl, request.setManicureAnchorImageDataUrl, ...request.productDataUrls, ...request.referenceDataUrls, ...setAppearanceSourceDataUrls]
+            .reduce((sum, value) => sum + value.length, 0);
+          if ((reviseCurrent || setEnabled) && imageBytes > 32 * 1024 * 1024) {
+            request.referenceDataUrls = await promptImages(state.referenceImages, '参考图R');
+          }
+          const options = { signal: state.abortController.signal, accessHeaders };
+          let payload;
+          try {
+            payload = await studio.services.experienceGeneration.generate(request, options);
+          } catch (error) {
+            if (!['source_manicure_match', 'set_manicure_mismatch', 'image_wardrobe_mismatch', 'classic_prop_mismatch'].includes(error.code)) throw error;
+            state.message = '正在修正这张图片…';
+            state.waitStartedAt = Date.now();
+            state.qualityPreview = error.qualityPreview || null;
+            if (error.code === 'classic_prop_mismatch') request.propAttempt += 1;
+            if (error.code === 'source_manicure_match') request.prompt += '\n重做所有可见指甲的设计：明显更换甲色与甲型或甲尖，不得复制任一上传图。';
+            if (error.code === 'image_wardrobe_mismatch') request.prompt += setAnchorImageDataUrl
+              ? '\n只修正服装与手饰，沿用确认样图中的新款，不照搬产品图或参考图。'
+              : '\n只重做可见服装和手饰：换明显不同的袖口款式、材质和颜色，去掉原图同款戒指、手链和手表。保持主体、背景与已合规美甲。';
+            if (error.manicureCorrection) request.manicureCorrection = error.manicureCorrection;
+            payload = await studio.services.experienceGeneration.generate(request, { ...options, timeoutMs: 120000 });
+            state.qualityPreview = null;
+          }
           lastPayload = payload;
           const image = payload.images?.[0] || null;
           if (!image) throw new Error(`套图 ${shotIndex + 1} 未返回图片`);
           generated[shotIndex] = image;
+          delete state.manicureCorrections[shotIndex];
+          delete state.propAttempts[shotIndex];
+          if (editingSample) state.sampleEdits.push(feedback);
+          else if (setEnabled && shotIndex === 0 && !reviseCurrent) state.sampleEdits = [];
           // Preserve already completed shots if a later request in the same set fails.
           state.results = generated.filter(Boolean);
           state.result = image;
-          state.resumeSetFrom = !reviseCurrent && setEnabled && shotIndex + 1 < shotCount ? shotIndex + 1 : 0;
+          if (!reviseCurrent) state.resumeSetFrom = resumeFrom && shotIndex + 1 < shotCount ? shotIndex + 1 : 0;
           state.usage = payload.usage || state.usage;
           const record = historyRecord(payload, image, state.prompt, feedback, state);
           state.lastHistoryRecord = record;
           if (!payload.mock && record) {
             try { await studio.services.reviewHistory.save(record); } catch { historyFailed = true; }
           }
-          if (!reviseCurrent && setEnabled && shotIndex + 1 < shotCount) {
+          if (!reviseCurrent && resumeFrom && shotIndex + 1 < shotCount) {
             state.selectedResultIndex = state.results.length - 1;
             state.message = `套图 ${state.results.length}/${shotCount} 已完成，继续生成下一张…`;
             render(container);
           }
         }
         state.results = generated.filter(Boolean);
-        state.resumeSetFrom = 0;
+        if (!reviseCurrent) state.resumeSetFrom = 0;
+        if (reviseCurrent) state.feedback = '';
         state.selectedResultIndex = Math.min(selectedIndex, state.results.length - 1);
         state.result = state.results[state.selectedResultIndex] || null;
+        if (!lastPayload?.mock && state.liveMode) syncProductClassification();
         if (lastPayload?.mock) {
           state.historySync = 'mock';
-          state.message = '本地模拟预览完成；模拟图不会写入正式历史。';
+          state.message = '';
         } else if (historyFailed) {
           state.historySync = 'pending';
           state.historySyncMessage = '部分历史同步失败';
@@ -14396,12 +15876,17 @@
         } else {
           state.historySync = 'synced';
           state.historySyncMessage = '';
-          state.message = setEnabled ? `套图 ${state.results.length} 张已生成并同步到统一历史。` : '生成完成，已同步到统一历史。';
+          state.message = '';
         }
       } catch (error) {
+        if (error.qualityPreview) state.qualityPreview = error.qualityPreview;
+        if (error.code === 'set_manicure_mismatch' && error.manicureCorrection) {
+          state.manicureCorrections[attemptedShot] = error.manicureCorrection;
+        }
+        if (error.code === 'classic_prop_mismatch') state.propAttempts[attemptedShot] = (state.propAttempts[attemptedShot] || 0) + 1;
         const completed = state.results.length;
         if (state.resumeSetFrom > 0 && completed) {
-          state.message = `已保留完成的 ${completed} 张；剩余镜头未收到服务端确认。${error.message} 请先查看统一历史，确认没有重复结果后再继续剩余镜头。`;
+          state.message = `已保留 ${completed} 张。${error.message}`;
         } else {
           state.message = error.message;
         }
@@ -14409,16 +15894,32 @@
         state.running = false;
         stopWait();
         render(container);
+        if (setEnabledForView()) container.querySelector('.sample-workspace')?.scrollIntoView?.({ block: 'start' });
       }
     }
 
-    container.querySelector('#experienceGenerate').onclick = () => generate('', { reviseCurrent: false });
+    const setEnabledForView = () => state.generationMode === 'set' && state.results.length > 0 && !state.sampleConfirmed && !state.message;
+
+    const generateButton = container.querySelector('#experienceGenerate');
+    if (generateButton) generateButton.onclick = () => generate('', { reviseCurrent: false });
+    const confirmSample = container.querySelector('#sampleConfirm');
+    if (confirmSample) confirmSample.onclick = () => generate('', { confirmSample: true });
+    const editBackground = container.querySelector('#sampleEditBackground');
+    if (editBackground) editBackground.onclick = () => {
+      const change = state.feedback.trim();
+      if (!change) return container.querySelector('#experienceFeedback').focus();
+      generate(`仅修改背景：${change}。保留服装、手部、美甲、光线和产品。`, { reviseCurrent: true });
+    };
     const retryHistory = container.querySelector('#retryExperienceHistory');
     if (retryHistory) retryHistory.onclick = async () => {
       if (!state.lastHistoryRecord) return;
       retryHistory.disabled = true;
       try {
-        await studio.services.reviewHistory.save(state.lastHistoryRecord);
+        const records = state.pendingPosterHistory.length ? [...state.pendingPosterHistory] : [state.lastHistoryRecord];
+        for (const record of records) {
+          await studio.services.reviewHistory.save(record);
+          state.pendingPosterHistory = state.pendingPosterHistory.filter(item => item.id !== record.id);
+        }
         state.historySync = 'synced';
         state.historySyncMessage = '';
         state.message = '已重新同步到统一历史。';
@@ -14431,6 +15932,13 @@
     };
     const feedback = container.querySelector('#experienceFeedback');
     if (feedback) feedback.oninput = event => { state.feedback = event.target.value; };
+    container.querySelectorAll('[data-scene-recommendation]').forEach(button => button.onclick = () => {
+      state.selectedSceneRecommendation = button.dataset.sceneRecommendation;
+      state.results = [];
+      state.result = null;
+      state.message = `已选择场景：${state.selectedSceneRecommendation}。你仍可编辑提示词后再生成。`;
+      render(container);
+    });
     container.querySelectorAll('[data-result-index]').forEach(card => card.onclick = event => {
       if (event.target.closest('a')) return;
       state.selectedResultIndex = Number(card.dataset.resultIndex) || 0;
@@ -14442,8 +15950,8 @@
     if (freshVariation) freshVariation.onclick = () => generate('', { reviseCurrent: false });
     const regenerate = container.querySelector('#experienceRegenerate');
     if (regenerate) regenerate.onclick = () => {
-      if (!state.feedback.trim()) return alert('请先填写本次改进意见');
-      generate(state.feedback.trim(), { reviseCurrent: true });
+      if (!state.feedback.trim()) return container.querySelector('#experienceFeedback').focus();
+      return generate(state.feedback.trim(), { reviseCurrent: true });
     };
   }
 
@@ -14454,18 +15962,19 @@
 (function startApplication(studio) {
   'use strict';
   const views = [
-    ['library', '01', '参考图库'],
-    ['modeling', '02', '产品库'],
-    ['promptWorkspace', '03', '创作与生图'],
-    ['history', '04', '统一历史']
+    ['promptWorkspace', 'AI 创作'],
+    ['library', '场景资产'],
+    ['modeling', '产品资产'],
+    ['history', '创作历史']
   ];
   studio.features.library.initialize();
   studio.features.modeling.initialize();
   studio.features.promptWorkspace.initialize();
   studio.features.generation.initialize();
   studio.features.history.initialize();
+  studio.features.tagBattle.initialize();
   studio.features.experience.initialize();
-  studio.state.currentView = 'library';
+  studio.state.currentView = 'promptWorkspace';
 
   const app = document.querySelector('#app');
   let view = null;
@@ -14547,26 +16056,75 @@
   function render() {
     app.querySelectorAll('[data-view]').forEach(button => button.classList.toggle('active', button.dataset.view === studio.state.currentView));
     studio.features[studio.state.currentView].render(view);
+    app.querySelector('[data-return-to-creation]').hidden = !studio.state.assetPicker;
     window.scrollTo({ top: 0, behavior: 'auto' });
   }
 
   function renderShell() {
-    app.innerHTML = `<div class="shell"><aside class="sidebar"><div class="brand"><small>MULTI-BRAND VISUAL STUDIO</small>品牌图片<br>生成平台</div><nav class="nav">${views.map(([key, step, label]) => `<button data-view="${key}"><span class="step">${step}</span>${label}</button>`).join('')}</nav><div class="ai-lock-note"><b>AI 接口状态</b><span>以创作页检测结果为准</span></div>${studio.services.accessSession.requiresLogin() ? '<button class="session-logout" id="sessionLogout" type="button">退出登录</button>' : ''}</aside><main class="content" id="view"></main></div>`;
+    app.innerHTML = `<div class="shell"><aside class="sidebar"><div class="brand"><small>UNIVERSAL SOCIAL VISUAL STUDIO</small>全品类种草<br>图片工作台</div><nav class="nav">${views.map(([key, label]) => `<button data-view="${key}">${label}</button>`).join('')}</nav>${studio.services.accessSession.requiresLogin() ? '<button class="session-logout" id="sessionLogout" type="button">退出登录</button>' : ''}</aside><main class="content" id="view"></main></div>`;
     view = app.querySelector('#view');
+    const back = document.createElement('button');
+    back.type = 'button';
+    back.className = 'action';
+    back.dataset.returnToCreation = '';
+    back.textContent = '返回 AI 创作';
+    app.querySelector('.nav').after(back);
+    function returnToCreation() {
+      if (studio.state.assetPicker) studio.state.assetPicker = null;
+      studio.state.prompt.sourceMode = 'experience';
+      studio.state.currentView = 'promptWorkspace';
+      render();
+    }
+    back.onclick = returnToCreation;
+    view.addEventListener('click', async event => {
+      const picker = event.target.closest('[data-pick-asset]');
+      const experience = studio.state.experience;
+      if (picker) {
+        if (experience.running || experience.promptRunning) return;
+        studio.state.assetPicker = { kind: picker.dataset.pickAsset, replaceBackground: picker.hasAttribute('data-replace-background') };
+        studio.state.currentView = picker.dataset.pickAsset === 'product' ? 'modeling' : 'library';
+        render();
+        return;
+      }
+      const button = event.target.closest('[data-use-asset]');
+      if (!button) return;
+      if (experience.running || experience.promptRunning) return;
+      const selection = studio.state.assetPicker;
+      const source = button.closest('article')?.querySelector('img');
+      if (!source) return;
+      button.disabled = true;
+      try {
+        const response = button.dataset.productAssetId
+          ? await studio.services.experienceGeneration.assetRequest(`/${button.dataset.productAssetId}`, undefined, { image: true })
+          : await fetch(source.dataset.src || source.src, { signal: AbortSignal.timeout(15000) });
+        if (!response.ok) throw new Error('无法读取原图');
+        const dataUrl = await studio.services.experienceGeneration.fileDataUrl(await response.blob(), '素材图');
+        if (!button.isConnected || studio.state.assetPicker !== selection) return;
+        experience.pendingAsset = { kind: button.dataset.useAsset, dataUrl, replaceBackground: selection?.replaceBackground };
+        returnToCreation();
+      } catch {
+        button.textContent = '读取失败，重试';
+        button.disabled = false;
+      }
+    });
     app.querySelectorAll('[data-view]').forEach(button => button.onclick = () => {
+      studio.state.assetPicker = null;
       studio.state.currentView = button.dataset.view;
+      if (button.dataset.view === 'history') studio.state.history.attempted = false;
       render();
     });
     const logout = app.querySelector('#sessionLogout');
     if (logout) logout.onclick = () => {
       studio.services.accessSession.clear();
+      studio.services.galleryImages.clear();
+      studio.services.reviewHistory.clearRecent();
       renderLogin();
     };
     render();
   }
 
   function renderLogin(message = '') {
-    app.innerHTML = `<main class="login-page"><form class="login-card" id="accessLogin"><div class="eyebrow">PRIVATE MULTI-BRAND STUDIO</div><h1>进入品牌图片生成平台</h1><p>请输入团队访问口令。登录后可使用所有品牌产品库，并查看全员共享的永久历史。</p><label for="accessPassphrase">平台访问口令</label><input id="accessPassphrase" name="passphrase" type="password" autocomplete="current-password" required autofocus><button class="action primary" type="submit">登录并记住此设备 7 天</button><div class="login-message" aria-live="polite">${studio.utils.escapeHtml(message)}</div><small>原始口令不会保存在浏览器中；公共或共享设备使用后请退出登录。</small></form></main>`;
+    app.innerHTML = `<main class="login-page"><form class="login-card" id="accessLogin"><div class="eyebrow">PRIVATE SOCIAL VISUAL STUDIO</div><h1>进入全品类种草图片工作台</h1><p>请输入团队访问口令。登录后可上传任意首批支持品类的产品图，并查看全员共享历史。</p><label for="accessPassphrase">平台访问口令</label><input id="accessPassphrase" name="passphrase" type="password" autocomplete="current-password" required autofocus><button class="action primary" type="submit">登录并记住此设备 7 天</button><div class="login-message" aria-live="polite">${studio.utils.escapeHtml(message)}</div><small>原始口令不会保存在浏览器中；公共或共享设备使用后请退出登录。</small></form></main>`;
     const form = app.querySelector('#accessLogin');
     form.onsubmit = async event => {
       event.preventDefault();
