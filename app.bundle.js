@@ -11269,7 +11269,8 @@
         const payload = await buildPrompt({
           productDataUrls: await Promise.all(saved.map(image => promptImageDataUrl(image.dataUrl, '产品图'))),
           classifyProductAssets: true,
-          presentationSource: 'product'
+          presentationSource: 'product',
+          imageUsageBrief: '逐张为产品图库确认品类。彩妆、口红、唇膏与护肤品归到「美妆护肤」。品牌看不清可留空，仍按产品用途独立判断品类。对每张 P 图返回对应的 productAssetTags，另按接口格式返回 backgroundPlan。'
         }, { interactive: true });
         await syncAssetTags(saved, payload);
         classified = Boolean(payload.productAssetTags?.some(item => item.category) || (saved.length === 1 && payload.productAnalysis?.categoryId && payload.productAnalysis.categoryId !== 'unknown'));
@@ -11315,7 +11316,7 @@
     if (images.length === 1 && category) {
       const index = tags.findIndex(tag => tag.index === 1);
       if (index < 0) tags.push({ index: 1, category });
-      else tags[index] = { ...tags[index], category };
+      else if (!tags[index].category) tags[index] = { ...tags[index], category };
     }
     await Promise.all(tags.map(async tag => {
       const image = images[tag.index - 1];
@@ -12544,17 +12545,21 @@
       studio.services.galleryImages.mount(card.querySelector('.gallery-image'), id ? `product:${id}:${hasPreview}` : '', photo);
     }
 
-    const catalogBrand = { 保健品: 'bayer', 母婴: 'huggies' }[category];
+    const builtinCategories = { 保健品: 'bayer', 母婴: 'huggies' };
+    const brands = category ? [builtinCategories[category]].filter(Boolean) : Object.values(builtinCategories);
     const originals = studio.data.products;
-    const catalogCards = catalog.skus.filter(sku => sku.brandId === catalogBrand).flatMap(sku =>
-      (sku.assets || []).map(asset => ({ brand: catalogBrand, src: asset.image, label: asset.label }))
-    );
-    if (catalogBrand === 'bayer') {
-      const extras = [...originals.angleFiles, ...originals.comboAngleFiles, originals.blister, originals.usedBlister, originals.tablet, originals.tabletPalm, originals.tabletHorizontal, originals.tabletVertical];
-      catalogCards.push(...originals.gallery.map(asset => ({ brand: catalogBrand, src: asset.image, label: asset.label })),
-        ...extras.filter(Boolean).map(asset => ({ brand: catalogBrand, src: originals.root + asset.file, label: asset.label })));
-    }
-    const localCards = [...new Map(catalogCards.filter(card => card.src).map(card => [card.src, card])).values()];
+    const localGroups = brands.map(brand => {
+      const cards = catalog.skus.filter(sku => sku.brandId === brand).flatMap(sku =>
+        (sku.assets || []).map(asset => ({ brand, src: asset.image, label: asset.label }))
+      );
+      if (brand === 'bayer') {
+        const extras = [...originals.angleFiles, ...originals.comboAngleFiles, originals.blister, originals.usedBlister, originals.tablet, originals.tabletPalm, originals.tabletHorizontal, originals.tabletVertical];
+        cards.push(...originals.gallery.map(asset => ({ brand, src: asset.image, label: asset.label })),
+          ...extras.filter(Boolean).map(asset => ({ brand, src: originals.root + asset.file, label: asset.label })));
+      }
+      return [...new Map(cards.filter(card => card.src).map(card => [card.src, card])).values()];
+    });
+    const localPageSize = category ? 12 : 6;
     let localOffset = 0;
     let remoteOffset = 0;
     let hasMore = isLiveMode();
@@ -12563,9 +12568,8 @@
     async function load() {
       if (loading) return;
       loading = true;
-      const remaining = localCards.slice(localOffset, localOffset + 12);
-      remaining.forEach(addCard);
-      localOffset += remaining.length;
+      localGroups.forEach(cards => cards.slice(localOffset, localOffset + localPageSize).forEach(addCard));
+      localOffset += localPageSize;
       status.textContent = hasMore ? '加载中…' : '';
       more.hidden = true;
       try {
@@ -12584,7 +12588,7 @@
         status.textContent = '暂时无法读取共享产品图';
       } finally {
         loading = false;
-        more.hidden = !(failed || hasMore || localOffset < localCards.length);
+        more.hidden = !(failed || hasMore || localGroups.some(cards => localOffset < cards.length));
         more.textContent = failed ? '重试' : '加载更多';
       }
     }
