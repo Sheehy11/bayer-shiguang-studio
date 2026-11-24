@@ -10961,6 +10961,9 @@
   const maxPromptBytes = 450 * 1024;
   const maxPromptDimension = 1200;
   const assetUploads = new WeakMap();
+  let archiveDatabase;
+  let archiveRetry;
+  const archiveActive = new Set();
 
   function apiBaseUrl() {
     const local = ['127.0.0.1', 'localhost'].includes(location.hostname);
@@ -11030,7 +11033,7 @@
   async function fileDataUrl(file, label) {
     if (!file || !String(file.type || '').startsWith('image/')) throw new Error(`${label}必须是图片`);
     if (file.size > maxSourceBytes) throw new Error(`${label}超过60MB，浏览器无法安全处理这张超大原图`);
-    if (!needsOptimization(file)) return readDataUrl(file, label);
+    if (!needsOptimization(file) && /^image\/(?:jpeg|png|webp)$/i.test(file.type)) return readDataUrl(file, label);
     const optimized = await optimizedTransferBlob(file, label);
     return readDataUrl(optimized, label);
   }
@@ -11156,11 +11159,15 @@
     const base = apiBaseUrl();
     const access = await authorizationHeaders();
     const response = await fetch(`${base}/api/product-assets${path}`, {
+      cache: 'no-store',
       signal: AbortSignal.timeout(body ? 20000 : image ? 15000 : 10000),
       headers: { ...access, ...(body ? { 'Content-Type': 'application/json' } : {}) },
       ...(body ? { method: 'POST', body: JSON.stringify(body) } : {})
     });
-    if (!response.ok) throw Object.assign(new Error('产品图库同步失败'), { status: response.status });
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({}));
+      throw Object.assign(new Error(payload.error || '产品图库同步失败'), { status: response.status });
+    }
     return response;
   }
 
@@ -11223,14 +11230,82 @@
     return assetUploads.get(image);
   }
 
+  async function archiveQueue(mode, operation) {
+    if (!archiveDatabase) {
+      archiveDatabase = new Promise((resolve, reject) => {
+        const open = indexedDB.open('bayer-product-archive-queue', 1);
+        open.onupgradeneeded = () => open.result.createObjectStore('pending', { keyPath: 'id' });
+        open.onsuccess = () => resolve(open.result);
+        open.onerror = () => reject(open.error);
+      }).catch(error => { archiveDatabase = null; throw error; });
+    }
+    const database = await archiveDatabase;
+    return new Promise((resolve, reject) => {
+      const transaction = database.transaction('pending', mode);
+      const request = operation(transaction.objectStore('pending'));
+      transaction.oncomplete = () => resolve(request.result);
+      transaction.onabort = () => reject(transaction.error || new Error('产品图待同步队列不可用'));
+      transaction.onerror = () => reject(transaction.error);
+    });
+  }
+
+  async function archiveBatch(images) {
+    const uploaded = await Promise.allSettled(images.map(async image => {
+      const id = image.archiveKey;
+      if (archiveActive.has(id)) return;
+      archiveActive.add(id);
+      try {
+        await ensureAsset(image);
+        if (image.archivePersisted !== false) await archiveQueue('readwrite', store => store.delete(id));
+        return image;
+      } finally {
+        archiveActive.delete(id);
+      }
+    }));
+    const saved = uploaded.flatMap(result => result.status === 'fulfilled' && result.value ? [result.value] : []);
+    let classified = true;
+    if (saved.length) {
+      try {
+        const payload = await buildPrompt({
+          productDataUrls: await Promise.all(saved.map(image => promptImageDataUrl(image.dataUrl, '产品图'))),
+          classifyProductAssets: true,
+          presentationSource: 'product'
+        }, { interactive: true });
+        await syncAssetTags(saved, payload);
+        classified = Boolean(payload.productAssetTags?.some(item => item.category) || (saved.length === 1 && payload.productAnalysis?.categoryId && payload.productAnalysis.categoryId !== 'unknown'));
+      } catch {
+        classified = false;
+      }
+      window.dispatchEvent(new Event('bayer-product-assets-updated'));
+    }
+    const firstFailed = uploaded.find(result => result.status === 'rejected');
+    if (firstFailed) throw firstFailed.reason;
+    return { saved: saved.length, classified };
+  }
+
   async function archiveUploads(images) {
-    await Promise.all(images.map(ensureAsset));
-    const payload = await buildPrompt({
-      productDataUrls: await Promise.all(images.map(image => promptImageDataUrl(image.dataUrl, '产品图'))),
-      classifyProductAssets: true,
-      presentationSource: 'product'
-    }, { interactive: true });
-    await syncAssetTags(images, payload);
+    const base = apiBaseUrl();
+    for (const image of images) {
+      image.archiveKey ||= crypto.randomUUID();
+      try {
+        await archiveQueue('readwrite', store => store.put({ id: image.archiveKey, base, dataUrl: image.dataUrl }));
+        image.archivePersisted = true;
+      } catch {
+        image.archivePersisted = false;
+      }
+    }
+    return archiveBatch(images);
+  }
+
+  function retryAssetUploads() {
+    if (!isLiveMode()) return Promise.resolve({ saved: 0, classified: true });
+    if (!archiveRetry) {
+      archiveRetry = archiveQueue('readonly', store => store.getAll()).then(records => {
+        const images = records.filter(record => record.base === apiBaseUrl() && !archiveActive.has(record.id));
+        return archiveBatch(images.map(record => ({ archiveKey: record.id, dataUrl: record.dataUrl })));
+      }).finally(() => { archiveRetry = null; });
+    }
+    return archiveRetry;
   }
 
   async function syncAssetTags(images, payload) {
@@ -11250,7 +11325,7 @@
     }));
   }
 
-  studio.services.experienceGeneration = { fileDataUrl, promptImageDataUrl, needsOptimization, buildPrompt, generate, authorizationHeaders, isLiveMode, assetRequest, fetchAssetPreview, archiveUploads, syncAssetTags };
+  studio.services.experienceGeneration = { fileDataUrl, promptImageDataUrl, needsOptimization, buildPrompt, generate, authorizationHeaders, isLiveMode, assetRequest, fetchAssetPreview, archiveUploads, retryAssetUploads, syncAssetTags };
 })(globalThis.BayerStudio);
 
 
@@ -15265,6 +15340,7 @@
       ${state.editorialPages.map((page, index) => `<fieldset class="presentation-source"><legend>第 ${index + 1} 页</legend><label>页面<select data-page-role="${index}">${studio.features.editorialLayout.roles.map(role => `<option${role === page.role ? ' selected' : ''}>${role}</option>`).join('')}</select></label><label>参考<select data-page-ref="${index}">${state.referenceImages.map((_, ref) => `<option value="${ref}"${page.ref === ref ? ' selected' : ''}>参考图 ${ref + 1}</option>`).join('')}</select></label>${state.productImages.length ? `<div>产品露出（最多两款） ${state.productImages.map((_, product) => `<label><input type="checkbox" data-page-product="${index}" value="${product}"${page.products.includes(product) ? ' checked' : ''}>产品图 ${product + 1}</label>`).join('')}</div>` : ''}</fieldset>`).join('')}
       <div class="experience-brief-row"><label class="experience-usage-brief"><b>创作要求（可选）</b><textarea id="experienceCreationBrief" rows="4" placeholder="补充画面要求">${studio.utils.escapeHtml(state.creationBrief)}</textarea></label><span class="experience-ratio-inline">3:4</span></div>
       <details class="advanced-panel"><summary>提示词</summary><div class="advanced-panel-body"><div class="experience-actions"><button class="action" id="experienceBuildPrompt" ${state.running || state.promptRunning || (!hasProducts && !hasReferences) ? 'disabled' : ''}>${state.promptRunning ? '分析中…' : '分析图片'}</button></div><p id="experiencePagePrompt" ${pageDriven() ? '' : 'hidden'}>${studio.utils.escapeHtml(promptPreview())}</p><label class="experience-prompt"><b id="experiencePromptLabel">${pageDriven() ? '补充提示词（可选）' : '编辑提示词'}</b><textarea id="experiencePrompt" rows="4" ${state.running || state.promptRunning ? 'disabled' : ''}>${studio.utils.escapeHtml(pageDriven() ? state.manualCreativePrompt : state.prompt)}</textarea></label></div></details>
+      <p id="assetArchiveStatus" aria-live="polite">${studio.utils.escapeHtml(state.assetArchiveMessage || '')}</p>
       <div class="experience-actions"><span id="experienceStatus">${studio.utils.escapeHtml(state.message)}</span>${state.running || state.promptRunning ? '<button class="action" id="cancelExperience" type="button">取消等待</button>' : ''}</div>
       <div class="experience-submit">${reviewingSample ? '' : `<button class="action primary" id="experienceGenerate" ${state.running || state.promptRunning || !canGenerate ? 'disabled' : ''}>${state.running ? '处理中…' : submitLabel}</button>`}</div></section>
       ${reviewingSample && !state.editorialPages.length ? setSampleMarkup(state) : resultMarkup(state)}
@@ -15363,8 +15439,13 @@
           resetDerivedState();
           state.message = '';
           if (key === 'productImages' && state.liveMode) {
-            studio.services.experienceGeneration.archiveUploads(added).catch(error => {
-              console.warn('产品资产后台归档未完成', error);
+            studio.services.experienceGeneration.archiveUploads(added).then(result => {
+              if (result.saved) state.assetArchiveMessage = result.classified ? '' : '产品图已同步到共享资产，分类暂待确认，可在「待分类」查看。';
+            }).catch(error => {
+              state.assetArchiveMessage = '产品资产暂未同步：' + error.message;
+            }).finally(() => {
+              const message = container.querySelector('#assetArchiveStatus');
+              if (message) message.textContent = state.assetArchiveMessage || '';
             });
           }
         } catch (error) {
@@ -16060,6 +16141,18 @@
     window.scrollTo({ top: 0, behavior: 'auto' });
   }
 
+  function retryProductSync() {
+    studio.services.experienceGeneration.retryAssetUploads().catch(error => {
+      console.warn('产品资产暂未同步，已保留待重试文件', error);
+    });
+  }
+  window.addEventListener('online', () => {
+    if (app.querySelector('#view')) retryProductSync();
+  });
+  window.addEventListener('bayer-product-assets-updated', () => {
+    if (view?.isConnected && studio.state.currentView === 'modeling') studio.features.modeling.render(view);
+  });
+
   function renderShell() {
     app.innerHTML = `<div class="shell"><aside class="sidebar"><div class="brand"><small>UNIVERSAL SOCIAL VISUAL STUDIO</small>全品类种草<br>图片工作台</div><nav class="nav">${views.map(([key, label]) => `<button data-view="${key}">${label}</button>`).join('')}</nav>${studio.services.accessSession.requiresLogin() ? '<button class="session-logout" id="sessionLogout" type="button">退出登录</button>' : ''}</aside><main class="content" id="view"></main></div>`;
     view = app.querySelector('#view');
@@ -16121,6 +16214,7 @@
       renderLogin();
     };
     render();
+    retryProductSync();
   }
 
   function renderLogin(message = '') {
