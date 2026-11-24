@@ -12498,17 +12498,16 @@
   function render(container) {
     const state = studio.state.productLibrary;
     const catalog = studio.data.platformCatalog;
-    const categories = ['保健品', '母婴', '数码及小型电器', '美妆护肤', '食品饮料', '日用消费品', '其他', '待分类'];
+    const categories = ['', '保健品', '母婴', '数码及小型电器', '美妆护肤', '食品饮料', '日用消费品', '其他', '待分类'];
     const category = state.category || '';
     const escape = studio.utils.escapeHtml;
     container.innerHTML = `<header class="page-head"><h1>产品资产</h1></header>
-      <nav class="actions" aria-label="产品品类">${categories.map(name => `<button class="action ${name === category ? 'primary' : ''}" data-product-category="${name}" aria-pressed="${name === category}">${name}</button>`).join('')}</nav>
+      <nav class="actions" aria-label="产品品类">${categories.map(name => `<button class="action ${name === category ? 'primary' : ''}" data-product-category="${name}" aria-pressed="${name === category}">${name || '全部'}</button>`).join('')}</nav>
       <section class="asset-gallery"><div data-uploaded-assets></div><p aria-live="polite"></p><button class="action" type="button" hidden>加载更多</button></section>`;
     container.querySelectorAll('[data-product-category]').forEach(button => button.onclick = () => {
       state.category = button.dataset.productCategory;
       render(container);
     });
-    if (!category) return;
     const uploaded = container.querySelector('.asset-gallery');
     const grid = uploaded.querySelector('[data-uploaded-assets]');
     const status = uploaded.querySelector('p');
